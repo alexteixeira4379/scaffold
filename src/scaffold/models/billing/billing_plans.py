@@ -1,0 +1,36 @@
+from __future__ import annotations
+
+from typing import Any
+from datetime import datetime
+
+from sqlalchemy import BigInteger, Boolean, DateTime, Integer, Numeric, String, Text, UniqueConstraint, func, JSON
+from sqlalchemy.orm import Mapped, mapped_column
+
+from scaffold.base import CoreBase
+
+
+class BillingPlan(CoreBase):
+    __tablename__ = "billing_plans"
+    __table_args__ = (
+        UniqueConstraint("code"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    code: Mapped[str] = mapped_column(Text, nullable=False)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    price: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
+    interval: Mapped[str | None] = mapped_column(Text, nullable=True)
+    interval_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    features: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, server_default="{}")
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
