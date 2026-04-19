@@ -1,0 +1,6 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "deploy": {
+    "startCommand": "uv run alembic -c alembic.core.ini upgrade head"
+  }
+}
