@@ -5,8 +5,7 @@ from logging.config import fileConfig
 from pathlib import Path
 
 from alembic import context
-from sqlalchemy import create_engine, pool, text
-from sqlalchemy.engine.url import make_url
+from sqlalchemy import create_engine, pool
 
 _SRC = Path(__file__).resolve().parents[2] / "src"
 if str(_SRC) not in sys.path:
@@ -33,20 +32,7 @@ def include_object(object, name, type_, reflected, compare_to):
 
 
 def run_migrations() -> None:
-    base = make_url(str(settings.database_url_sync))
-    dbname = base.database
-    if dbname:
-        server = base.set(database="")
-        ddl_engine = create_engine(server, poolclass=pool.NullPool, isolation_level="AUTOCOMMIT")
-        with ddl_engine.connect() as ddl_conn:
-            ident = dbname.replace("`", "``")
-            ddl_conn.execute(
-                text(
-                    f"CREATE DATABASE IF NOT EXISTS `{ident}` "
-                    "CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
-                )
-            )
-    url = str(base)
+    url = str(settings.database_url_sync)
     connectable = create_engine(url, poolclass=pool.NullPool)
     with connectable.connect() as connection:
         context.configure(
