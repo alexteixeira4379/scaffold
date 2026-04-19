@@ -111,8 +111,29 @@ def upgrade() -> None:
     )
     op.create_index("ix_job_events_job_id", "job_events", ["job_id"])
 
+    op.create_table(
+        "job_routing_keywords",
+        sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
+        sa.Column("job_id", sa.BigInteger(), nullable=False),
+        sa.Column("keyword", sa.String(512), nullable=False),
+        sa.Column("keyword_source", sa.String(64), nullable=False),
+        sa.Column("weight", sa.Numeric(5, 2), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.ForeignKeyConstraint(["job_id"], ["jobs.id"], name=op.f("fk_job_routing_keywords_job_id_jobs")),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_job_routing_keywords")),
+        sa.UniqueConstraint(
+            "job_id",
+            "keyword",
+            "keyword_source",
+            name=op.f("uq_job_routing_keywords_job_keyword_source"),
+        ),
+    )
+    op.create_index("ix_job_routing_keywords_job_id", "job_routing_keywords", ["job_id"])
+    op.create_index("ix_job_routing_keywords_keyword", "job_routing_keywords", ["keyword"])
+
 
 def downgrade() -> None:
+    op.drop_table("job_routing_keywords")
     op.drop_table("job_events")
     op.drop_table("job_raw_payloads")
     op.drop_table("jobs")

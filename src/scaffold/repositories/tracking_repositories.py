@@ -74,22 +74,38 @@ class TrackingClickRepository(AsyncRepository[TrackingClick]):
             offset=offset,
         )
 
+    async def list_by_session_key(
+        self,
+        session: AsyncSession,
+        session_key: str,
+        *,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[TrackingClick]:
+        return await self.list_where(
+            session,
+            TrackingClick.session_key == session_key,
+            order_by=(TrackingClick.id.desc(),),
+            limit=limit,
+            offset=offset,
+        )
+
 
 class TrackingVisitRepository(AsyncRepository[TrackingVisit]):
     def __init__(self) -> None:
         super().__init__(TrackingVisit)
 
-    async def list_by_session_id(
+    async def list_by_session_key(
         self,
         session: AsyncSession,
-        session_id: str,
+        session_key: str,
         *,
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[TrackingVisit]:
         return await self.list_where(
             session,
-            TrackingVisit.session_id == session_id,
+            TrackingVisit.session_key == session_key,
             order_by=(TrackingVisit.id.desc(),),
             limit=limit,
             offset=offset,
@@ -116,17 +132,17 @@ class TrackingEventRepository(AsyncRepository[TrackingEvent]):
     def __init__(self) -> None:
         super().__init__(TrackingEvent)
 
-    async def list_by_session_id(
+    async def list_by_session_key(
         self,
         session: AsyncSession,
-        session_id: str,
+        session_key: str,
         *,
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[TrackingEvent]:
         return await self.list_where(
             session,
-            TrackingEvent.session_id == session_id,
+            TrackingEvent.session_key == session_key,
             order_by=(TrackingEvent.id.desc(),),
             limit=limit,
             offset=offset,

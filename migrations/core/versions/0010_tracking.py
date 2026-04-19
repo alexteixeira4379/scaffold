@@ -21,7 +21,7 @@ def upgrade() -> None:
     op.create_table(
         "tracking_visits",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
-        sa.Column("session_id", sa.String(128), nullable=True),
+        sa.Column("session_key", sa.String(128), nullable=True),
         sa.Column("candidate_id", sa.BigInteger(), nullable=True),
         sa.Column("page_url", sa.Text(), nullable=True),
         sa.Column("referrer", sa.Text(), nullable=True),
@@ -31,7 +31,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["candidate_id"], ["candidates.id"], name=op.f("fk_tracking_visits_candidate_id_candidates")),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_tracking_visits")),
     )
-    op.create_index("ix_tracking_visits_session_id", "tracking_visits", ["session_id"])
+    op.create_index("ix_tracking_visits_session_key", "tracking_visits", ["session_key"])
     op.create_index("ix_tracking_visits_candidate_id", "tracking_visits", ["candidate_id"])
 
     op.create_table(
@@ -54,7 +54,7 @@ def upgrade() -> None:
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
         sa.Column("track_code", sa.String(128), nullable=True),
         sa.Column("click_key", sa.String(255), nullable=False),
-        sa.Column("session_id", sa.String(128), nullable=True),
+        sa.Column("session_key", sa.String(128), nullable=True),
         sa.Column("candidate_id", sa.BigInteger(), nullable=True),
         sa.Column("full_url", sa.Text(), nullable=False),
         sa.Column("base_url", sa.Text(), nullable=True),
@@ -78,7 +78,7 @@ def upgrade() -> None:
         sa.UniqueConstraint("click_key", name=op.f("uq_tracking_clicks_click_key")),
     )
     op.create_index("ix_tracking_clicks_track_code", "tracking_clicks", ["track_code"])
-    op.create_index("ix_tracking_clicks_session_id", "tracking_clicks", ["session_id"])
+    op.create_index("ix_tracking_clicks_session_key", "tracking_clicks", ["session_key"])
     op.create_index("ix_tracking_clicks_candidate_id", "tracking_clicks", ["candidate_id"])
     op.create_index("ix_tracking_clicks_fbclid", "tracking_clicks", ["fbclid"])
 
@@ -102,7 +102,7 @@ def upgrade() -> None:
     op.create_table(
         "tracking_events",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
-        sa.Column("session_id", sa.String(128), nullable=True),
+        sa.Column("session_key", sa.String(128), nullable=True),
         sa.Column("candidate_id", sa.BigInteger(), nullable=True),
         sa.Column("tracking_click_id", sa.BigInteger(), nullable=True),
         sa.Column("event_name", sa.Text(), nullable=False),
@@ -112,7 +112,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["tracking_click_id"], ["tracking_clicks.id"], name=op.f("fk_tracking_events_tracking_click_id_tracking_clicks")),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_tracking_events")),
     )
-    op.create_index("ix_tracking_events_session_id", "tracking_events", ["session_id"])
+    op.create_index("ix_tracking_events_session_key", "tracking_events", ["session_key"])
     op.create_index("ix_tracking_events_candidate_id", "tracking_events", ["candidate_id"])
 
 

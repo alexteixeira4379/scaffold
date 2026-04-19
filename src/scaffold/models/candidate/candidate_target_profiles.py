@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Index, Numeric, String, Text, func, JSON
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Index, Numeric, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from scaffold.base import CoreBase
@@ -15,18 +14,16 @@ _job_employment_type = mysql_enum(EmploymentType, "job_employment_type")
 _job_experience_level = mysql_enum(ExperienceLevel, "job_experience_level")
 
 
-class CandidateSearchPreset(CoreBase):
-    __tablename__ = "candidate_search_presets"
+class CandidateTargetProfile(CoreBase):
+    __tablename__ = "candidate_target_profiles"
     __table_args__ = (
-        Index("ix_candidate_search_presets_candidate_active", "candidate_id", "active"),
-        Index("ix_candidate_search_presets_candidate_is_default", "candidate_id", "is_default"),
+        Index("ix_candidate_target_profiles_candidate_active", "candidate_id", "active"),
+        Index("ix_candidate_target_profiles_candidate_is_default", "candidate_id", "is_default"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     candidate_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("candidates.id"), nullable=False)
     name: Mapped[str] = mapped_column(Text, nullable=False)
-    keywords_include: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, server_default="[]")
-    keywords_exclude: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, server_default="[]")
     target_country: Mapped[str | None] = mapped_column(String(2), nullable=True)
     target_location: Mapped[str | None] = mapped_column(Text, nullable=True)
     remote_preference: Mapped[RemoteType] = mapped_column(

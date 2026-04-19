@@ -95,23 +95,56 @@ texto = resultado.as_text()
 
 Para saída estruturada, use `ResponseMode.JSON` e consuma com `resultado.as_json()`. Os métodos `basic`, `intermediate`, `complex` e `thinking` diferenciam **custo ou capacidade esperada**; o modelo concreto por nível vem só do `Settings` (`GROQ_MODEL_*`), o que permite evoluir modelos sem alterar o código do consumidor.
 
+## Modelo de dados (visão geral)
+
+O schema do contexto **`core`** separa responsabilidades em camadas:
+
+| Área | Papel | Tabelas principais (ORM) |
+|------|--------|---------------------------|
+| Candidato | identidade, preferências globais, perfis-alvo roteáveis e keywords | `candidates`, `candidate_preferences`, `candidate_target_profiles`, `candidate_target_profile_keywords`, `candidate_events` |
+| Coleta | definição e execução de busca de vagas, sem vínculo a candidato | `job_discovery_sources`, `job_collection_definitions`, `job_collection_runs`, `job_collection_checkpoints` |
+| Vaga | catálogo central e keywords de roteamento | `jobs`, `job_raw_payloads`, `job_events`, `job_routing_keywords` |
+| Match | elegibilidade barata e associação final candidato ↔ vaga | `job_candidate_eligibilities`, `job_matches`, `job_match_scores`, `job_match_evaluations`, `job_match_events` |
+| Candidatura | fluxo de aplicação (depende de `job_matches`) | ver revisão `0008_application` |
+| Tracking | eventos com identidade de sessão externa | `tracking_*` com coluna `session_key` onde aplicável |
+
+Os repositórios em `scaffold.repositories` seguem esses agregados (por exemplo `JobCollectionDefinitionRepository`, `CandidateTargetProfileRepository`, `JobCandidateEligibilityRepository`).
+
 ## Migrações (Alembic)
 
-Neste repositório existe o contexto **`core`**, configurado em `alembic.core.ini` e revisões em `migrations/core/versions/`.
+Neste repositório existe o contexto **`core`**, configurado em `alembic.core.ini` e revisões em `migrations/core/versions/`. O Alembic lê `DATABASE_URL` via `get_settings()` (defina-a no ambiente ou no `.env` antes de executar comandos).
 
-Aplicar migrações:
+Aplicar todas as migrações até o estado atual:
 
 ```bash
-alembic -c alembic.core.ini upgrade head
+uv run alembic -c alembic.core.ini upgrade head
 ```
 
 Criar uma nova revisão (com modelos autogerados quando aplicável):
 
 ```bash
-alembic -c alembic.core.ini revision --autogenerate -m "descrição curta"
+uv run alembic -c alembic.core.ini revision --autogenerate -m "descrição curta"
 ```
 
-Outros contextos de migração (por exemplo `jcrawler`, `job_ingestion`) podem ser acrescentados ao monorepo no mesmo padrão quando existir necessidade e ficheiros `alembic.*.ini` correspondentes.
+### Zerar o banco (wipe)
+
+Depois de **alterações grandes nas revisões já existentes**, o histórico em `alembic_version` pode deixar de corresponder ao que o `downgrade base` assume. Nesse caso o caminho seguro é **apagar o banco e recriar o schema do zero**, em vez de depender só do downgrade.
+
+Exemplo com cliente MySQL (ajuste usuário, host e nome do banco):
+
+```bash
+mysql -u USUARIO -p -h HOST -e "DROP DATABASE IF EXISTS nome_do_banco; CREATE DATABASE nome_do_banco CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+```
+
+Em seguida, com `DATABASE_URL` apontando para esse banco:
+
+```bash
+uv run alembic -c alembic.core.ini upgrade head
+```
+
+Use wipe apenas em **ambiente de desenvolvimento** ou com **backup**; o comando apaga todos os dados e a tabela de versão do Alembic.
+
+Outros contextos de migração podem ser acrescentados no mesmo padrão quando existir necessidade e ficheiros `alembic.*.ini` correspondentes.
 
 ## Desenvolvimento
 

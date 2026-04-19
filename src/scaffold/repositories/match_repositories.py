@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from scaffold.models.job.job_candidate_eligibilities import JobCandidateEligibility
 from scaffold.models.job.job_match_evaluations import JobMatchEvaluation
 from scaffold.models.job.job_match_events import JobMatchEvent
 from scaffold.models.job.job_match_scores import JobMatchScore
@@ -14,13 +15,18 @@ class JobMatchRepository(AsyncRepository[JobMatch]):
     def __init__(self) -> None:
         super().__init__(JobMatch)
 
-    async def get_by_candidate_and_job(
-        self, session: AsyncSession, candidate_id: int, job_id: int
+    async def get_by_candidate_job_and_target_profile(
+        self,
+        session: AsyncSession,
+        candidate_id: int,
+        job_id: int,
+        candidate_target_profile_id: int,
     ) -> JobMatch | None:
         return await self.first_where(
             session,
             JobMatch.candidate_id == candidate_id,
             JobMatch.job_id == job_id,
+            JobMatch.candidate_target_profile_id == candidate_target_profile_id,
         )
 
     async def list_by_candidate_id(
@@ -55,6 +61,22 @@ class JobMatchRepository(AsyncRepository[JobMatch]):
             offset=offset,
         )
 
+    async def list_by_candidate_target_profile_id(
+        self,
+        session: AsyncSession,
+        candidate_target_profile_id: int,
+        *,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[JobMatch]:
+        return await self.list_where(
+            session,
+            JobMatch.candidate_target_profile_id == candidate_target_profile_id,
+            order_by=(JobMatch.id.desc(),),
+            limit=limit,
+            offset=offset,
+        )
+
     async def list_by_status(
         self,
         session: AsyncSession,
@@ -67,6 +89,89 @@ class JobMatchRepository(AsyncRepository[JobMatch]):
             session,
             JobMatch.status == status,
             order_by=(JobMatch.id.desc(),),
+            limit=limit,
+            offset=offset,
+        )
+
+
+class JobCandidateEligibilityRepository(AsyncRepository[JobCandidateEligibility]):
+    def __init__(self) -> None:
+        super().__init__(JobCandidateEligibility)
+
+    async def get_by_job_candidate_and_target_profile(
+        self,
+        session: AsyncSession,
+        job_id: int,
+        candidate_id: int,
+        candidate_target_profile_id: int,
+    ) -> JobCandidateEligibility | None:
+        return await self.first_where(
+            session,
+            JobCandidateEligibility.job_id == job_id,
+            JobCandidateEligibility.candidate_id == candidate_id,
+            JobCandidateEligibility.candidate_target_profile_id == candidate_target_profile_id,
+        )
+
+    async def list_by_job_id(
+        self,
+        session: AsyncSession,
+        job_id: int,
+        *,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[JobCandidateEligibility]:
+        return await self.list_where(
+            session,
+            JobCandidateEligibility.job_id == job_id,
+            order_by=(JobCandidateEligibility.id.desc(),),
+            limit=limit,
+            offset=offset,
+        )
+
+    async def list_by_candidate_id(
+        self,
+        session: AsyncSession,
+        candidate_id: int,
+        *,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[JobCandidateEligibility]:
+        return await self.list_where(
+            session,
+            JobCandidateEligibility.candidate_id == candidate_id,
+            order_by=(JobCandidateEligibility.id.desc(),),
+            limit=limit,
+            offset=offset,
+        )
+
+    async def list_by_candidate_target_profile_id(
+        self,
+        session: AsyncSession,
+        candidate_target_profile_id: int,
+        *,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[JobCandidateEligibility]:
+        return await self.list_where(
+            session,
+            JobCandidateEligibility.candidate_target_profile_id == candidate_target_profile_id,
+            order_by=(JobCandidateEligibility.id.desc(),),
+            limit=limit,
+            offset=offset,
+        )
+
+    async def list_by_status(
+        self,
+        session: AsyncSession,
+        status: str,
+        *,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[JobCandidateEligibility]:
+        return await self.list_where(
+            session,
+            JobCandidateEligibility.status == status,
+            order_by=(JobCandidateEligibility.id.desc(),),
             limit=limit,
             offset=offset,
         )
@@ -145,6 +250,7 @@ class JobMatchEventRepository(AsyncRepository[JobMatchEvent]):
 
 
 job_match_repository = JobMatchRepository()
+job_candidate_eligibility_repository = JobCandidateEligibilityRepository()
 job_match_score_repository = JobMatchScoreRepository()
 job_match_evaluation_repository = JobMatchEvaluationRepository()
 job_match_event_repository = JobMatchEventRepository()

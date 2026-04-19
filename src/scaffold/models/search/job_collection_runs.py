@@ -13,16 +13,16 @@ from scaffold.constants.schema_enums import SearchRunStatus
 _search_run_status = mysql_enum(SearchRunStatus, "search_run_status")
 
 
-class SearchRun(CoreBase):
-    __tablename__ = "search_runs"
+class JobCollectionRun(CoreBase):
+    __tablename__ = "job_collection_runs"
     __table_args__ = (
-        Index("ix_search_runs_search_definition_id", "search_definition_id"),
-        Index("ix_search_runs_status", "status"),
+        Index("ix_job_collection_runs_job_collection_definition_id", "job_collection_definition_id"),
+        Index("ix_job_collection_runs_status", "status"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    search_definition_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("search_definitions.id"), nullable=False
+    job_collection_definition_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("job_collection_definitions.id"), nullable=False
     )
     status: Mapped[SearchRunStatus] = mapped_column(
         _search_run_status,

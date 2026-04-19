@@ -101,12 +101,10 @@ def upgrade() -> None:
     )
 
     op.create_table(
-        "candidate_search_presets",
+        "candidate_target_profiles",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
         sa.Column("candidate_id", sa.BigInteger(), nullable=False),
         sa.Column("name", sa.Text(), nullable=False),
-        sa.Column("keywords_include", sa.JSON(), nullable=False, server_default=sa.text("(JSON_ARRAY())")),
-        sa.Column("keywords_exclude", sa.JSON(), nullable=False, server_default=sa.text("(JSON_ARRAY())")),
         sa.Column("target_country", sa.String(2), nullable=True),
         sa.Column("target_location", sa.Text(), nullable=True),
         sa.Column(
@@ -133,15 +131,45 @@ def upgrade() -> None:
         sa.Column("active", sa.Boolean(), server_default=sa.text("1"), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.ForeignKeyConstraint(["candidate_id"], ["candidates.id"], name=op.f("fk_candidate_search_presets_candidate_id_candidates")),
-        sa.PrimaryKeyConstraint("id", name=op.f("pk_candidate_search_presets")),
+        sa.ForeignKeyConstraint(["candidate_id"], ["candidates.id"], name=op.f("fk_candidate_target_profiles_candidate_id_candidates")),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_candidate_target_profiles")),
     )
-    op.create_index("ix_candidate_search_presets_candidate_active", "candidate_search_presets", ["candidate_id", "active"])
+    op.create_index("ix_candidate_target_profiles_candidate_active", "candidate_target_profiles", ["candidate_id", "active"])
     op.create_index(
-        "ix_candidate_search_presets_candidate_is_default",
-        "candidate_search_presets",
+        "ix_candidate_target_profiles_candidate_is_default",
+        "candidate_target_profiles",
         ["candidate_id", "is_default"],
     )
+
+    op.create_table(
+        "candidate_target_profile_keywords",
+        sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
+        sa.Column("candidate_target_profile_id", sa.BigInteger(), nullable=False),
+        sa.Column("keyword", sa.String(512), nullable=False),
+        sa.Column("match_policy", sa.String(32), nullable=False),
+        sa.Column("weight", sa.Numeric(5, 2), nullable=True),
+        sa.Column("active", sa.Boolean(), server_default=sa.text("1"), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["candidate_target_profile_id"],
+            ["candidate_target_profiles.id"],
+            name=op.f("fk_candidate_target_profile_keywords_candidate_target_profile_id_candidate_target_profiles"),
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_candidate_target_profile_keywords")),
+        sa.UniqueConstraint(
+            "candidate_target_profile_id",
+            "keyword",
+            "match_policy",
+            name=op.f("uq_candidate_target_profile_keywords_profile_keyword_policy"),
+        ),
+    )
+    op.create_index(
+        "ix_candidate_target_profile_keywords_candidate_target_profile_id",
+        "candidate_target_profile_keywords",
+        ["candidate_target_profile_id"],
+    )
+    op.create_index("ix_candidate_target_profile_keywords_keyword", "candidate_target_profile_keywords", ["keyword"])
 
     op.create_table(
         "candidate_events",
@@ -158,6 +186,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_table("candidate_events")
-    op.drop_table("candidate_search_presets")
+    op.drop_table("candidate_target_profile_keywords")
+    op.drop_table("candidate_target_profiles")
     op.drop_table("candidate_preferences")
     op.drop_table("candidates")

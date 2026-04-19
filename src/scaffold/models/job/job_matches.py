@@ -15,7 +15,12 @@ _job_match_status = mysql_enum(JobMatchStatus, "job_match_status")
 class JobMatch(CoreBase):
     __tablename__ = "job_matches"
     __table_args__ = (
-        UniqueConstraint("candidate_id", "job_id"),
+        UniqueConstraint(
+            "candidate_id",
+            "job_id",
+            "candidate_target_profile_id",
+            name="uq_job_matches_candidate_job_target_profile",
+        ),
         Index("ix_job_matches_score", "score"),
         Index("ix_job_matches_status", "status"),
     )
@@ -23,6 +28,9 @@ class JobMatch(CoreBase):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     candidate_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("candidates.id"), nullable=False)
     job_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("jobs.id"), nullable=False)
+    candidate_target_profile_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("candidate_target_profiles.id"), nullable=False
+    )
     score: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False)
     status: Mapped[JobMatchStatus] = mapped_column(
         _job_match_status,

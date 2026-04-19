@@ -24,10 +24,42 @@ _job_match_status = mysql_enum(JobMatchStatus, "job_match_status")
 
 def upgrade() -> None:
     op.create_table(
+        "job_candidate_eligibilities",
+        sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
+        sa.Column("job_id", sa.BigInteger(), nullable=False),
+        sa.Column("candidate_id", sa.BigInteger(), nullable=False),
+        sa.Column("candidate_target_profile_id", sa.BigInteger(), nullable=False),
+        sa.Column("status", sa.String(64), server_default="pending", nullable=False),
+        sa.Column("routing_score", sa.Numeric(5, 2), nullable=True),
+        sa.Column("routing_reason", sa.JSON(), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.ForeignKeyConstraint(["candidate_id"], ["candidates.id"], name=op.f("fk_job_candidate_eligibilities_candidate_id_candidates")),
+        sa.ForeignKeyConstraint(["candidate_target_profile_id"], ["candidate_target_profiles.id"], name=op.f("fk_job_candidate_eligibilities_candidate_target_profile_id_candidate_target_profiles")),
+        sa.ForeignKeyConstraint(["job_id"], ["jobs.id"], name=op.f("fk_job_candidate_eligibilities_job_id_jobs")),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_job_candidate_eligibilities")),
+        sa.UniqueConstraint(
+            "job_id",
+            "candidate_id",
+            "candidate_target_profile_id",
+            name=op.f("uq_job_candidate_eligibilities_job_candidate_profile"),
+        ),
+    )
+    op.create_index("ix_job_candidate_eligibilities_job_id", "job_candidate_eligibilities", ["job_id"])
+    op.create_index("ix_job_candidate_eligibilities_candidate_id", "job_candidate_eligibilities", ["candidate_id"])
+    op.create_index(
+        "ix_job_candidate_eligibilities_candidate_target_profile_id",
+        "job_candidate_eligibilities",
+        ["candidate_target_profile_id"],
+    )
+    op.create_index("ix_job_candidate_eligibilities_status", "job_candidate_eligibilities", ["status"])
+
+    op.create_table(
         "job_matches",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
         sa.Column("candidate_id", sa.BigInteger(), nullable=False),
         sa.Column("job_id", sa.BigInteger(), nullable=False),
+        sa.Column("candidate_target_profile_id", sa.BigInteger(), nullable=False),
         sa.Column("score", sa.Numeric(5, 2), nullable=False),
         sa.Column(
             "status",
@@ -39,9 +71,15 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.ForeignKeyConstraint(["candidate_id"], ["candidates.id"], name=op.f("fk_job_matches_candidate_id_candidates")),
+        sa.ForeignKeyConstraint(["candidate_target_profile_id"], ["candidate_target_profiles.id"], name=op.f("fk_job_matches_candidate_target_profile_id_candidate_target_profiles")),
         sa.ForeignKeyConstraint(["job_id"], ["jobs.id"], name=op.f("fk_job_matches_job_id_jobs")),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_job_matches")),
-        sa.UniqueConstraint("candidate_id", "job_id", name=op.f("uq_job_matches_candidate_id")),
+        sa.UniqueConstraint(
+            "candidate_id",
+            "job_id",
+            "candidate_target_profile_id",
+            name=op.f("uq_job_matches_candidate_job_target_profile"),
+        ),
     )
     op.create_index("ix_job_matches_score", "job_matches", ["score"])
     op.create_index("ix_job_matches_status", "job_matches", ["status"])
@@ -95,3 +133,4 @@ def downgrade() -> None:
     op.drop_table("job_match_evaluations")
     op.drop_table("job_match_scores")
     op.drop_table("job_matches")
+    op.drop_table("job_candidate_eligibilities")

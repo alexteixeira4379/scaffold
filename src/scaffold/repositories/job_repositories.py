@@ -6,6 +6,7 @@ from scaffold.models.job.job_applications import JobApplication
 from scaffold.models.job.job_discovery_sources import JobDiscoverySource
 from scaffold.models.job.job_events import JobEvent
 from scaffold.models.job.job_raw_payloads import JobRawPayload
+from scaffold.models.job.job_routing_keywords import JobRoutingKeyword
 from scaffold.models.job.jobs import Job
 
 from scaffold.repositories.base import AsyncRepository
@@ -134,8 +135,30 @@ class JobRawPayloadRepository(AsyncRepository[JobRawPayload]):
         )
 
 
+class JobRoutingKeywordRepository(AsyncRepository[JobRoutingKeyword]):
+    def __init__(self) -> None:
+        super().__init__(JobRoutingKeyword)
+
+    async def list_by_job_id(
+        self,
+        session: AsyncSession,
+        job_id: int,
+        *,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[JobRoutingKeyword]:
+        return await self.list_where(
+            session,
+            JobRoutingKeyword.job_id == job_id,
+            order_by=(JobRoutingKeyword.id,),
+            limit=limit,
+            offset=offset,
+        )
+
+
 job_repository = JobRepository()
 job_discovery_source_repository = JobDiscoverySourceRepository()
 job_event_repository = JobEventRepository()
 job_application_repository = JobApplicationRepository()
 job_raw_payload_repository = JobRawPayloadRepository()
+job_routing_keyword_repository = JobRoutingKeywordRepository()

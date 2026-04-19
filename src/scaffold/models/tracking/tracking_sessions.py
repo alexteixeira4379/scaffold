@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Text, UniqueConstraint, func, JSON
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, String, Text, UniqueConstraint, func, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from scaffold.base import CoreBase
@@ -17,7 +17,7 @@ class TrackingSession(CoreBase):
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    session_key: Mapped[str] = mapped_column(Text, nullable=False)
+    session_key: Mapped[str] = mapped_column(String(128), nullable=False)
     candidate_id: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("candidates.id"), nullable=True
     )

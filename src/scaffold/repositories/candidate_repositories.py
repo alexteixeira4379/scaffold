@@ -5,8 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from scaffold.models.candidate.candidate_events import CandidateEvent
 from scaffold.models.candidate.candidate_preferences import CandidatePreference
-from scaffold.models.candidate.candidate_search_presets import CandidateSearchPreset
-from scaffold.models.candidate.candidate_search_subscriptions import CandidateSearchSubscription
+from scaffold.models.candidate.candidate_target_profile_keywords import CandidateTargetProfileKeyword
+from scaffold.models.candidate.candidate_target_profiles import CandidateTargetProfile
 from scaffold.models.candidate.candidates import Candidate
 
 from scaffold.repositories.base import AsyncRepository
@@ -75,9 +75,9 @@ class CandidatePreferenceRepository(AsyncRepository[CandidatePreference]):
         return await self.first_where(session, CandidatePreference.candidate_id == candidate_id)
 
 
-class CandidateSearchPresetRepository(AsyncRepository[CandidateSearchPreset]):
+class CandidateTargetProfileRepository(AsyncRepository[CandidateTargetProfile]):
     def __init__(self) -> None:
-        super().__init__(CandidateSearchPreset)
+        super().__init__(CandidateTargetProfile)
 
     async def list_by_candidate_id(
         self,
@@ -86,32 +86,32 @@ class CandidateSearchPresetRepository(AsyncRepository[CandidateSearchPreset]):
         *,
         limit: int | None = None,
         offset: int | None = None,
-    ) -> list[CandidateSearchPreset]:
+    ) -> list[CandidateTargetProfile]:
         return await self.list_where(
             session,
-            CandidateSearchPreset.candidate_id == candidate_id,
-            order_by=(CandidateSearchPreset.id,),
+            CandidateTargetProfile.candidate_id == candidate_id,
+            order_by=(CandidateTargetProfile.id,),
             limit=limit,
             offset=offset,
         )
 
 
-class CandidateSearchSubscriptionRepository(AsyncRepository[CandidateSearchSubscription]):
+class CandidateTargetProfileKeywordRepository(AsyncRepository[CandidateTargetProfileKeyword]):
     def __init__(self) -> None:
-        super().__init__(CandidateSearchSubscription)
+        super().__init__(CandidateTargetProfileKeyword)
 
-    async def list_by_candidate_id(
+    async def list_by_candidate_target_profile_id(
         self,
         session: AsyncSession,
-        candidate_id: int,
+        candidate_target_profile_id: int,
         *,
         limit: int | None = None,
         offset: int | None = None,
-    ) -> list[CandidateSearchSubscription]:
+    ) -> list[CandidateTargetProfileKeyword]:
         return await self.list_where(
             session,
-            CandidateSearchSubscription.candidate_id == candidate_id,
-            order_by=(CandidateSearchSubscription.id,),
+            CandidateTargetProfileKeyword.candidate_target_profile_id == candidate_target_profile_id,
+            order_by=(CandidateTargetProfileKeyword.id,),
             limit=limit,
             offset=offset,
         )
@@ -120,5 +120,5 @@ class CandidateSearchSubscriptionRepository(AsyncRepository[CandidateSearchSubsc
 candidate_repository = CandidateRepository()
 candidate_event_repository = CandidateEventRepository()
 candidate_preference_repository = CandidatePreferenceRepository()
-candidate_search_preset_repository = CandidateSearchPresetRepository()
-candidate_search_subscription_repository = CandidateSearchSubscriptionRepository()
+candidate_target_profile_repository = CandidateTargetProfileRepository()
+candidate_target_profile_keyword_repository = CandidateTargetProfileKeywordRepository()
