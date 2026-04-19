@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Index, Text, UniqueConstraint, func
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Index, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from scaffold.base import CoreBase
@@ -23,7 +23,7 @@ class AtsProviderDomain(CoreBase):
     ats_provider_id: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("ats_providers.id"), nullable=False
     )
-    domain: Mapped[str] = mapped_column(Text, nullable=False)
+    domain: Mapped[str] = mapped_column(String(255), nullable=False)
     domain_type: Mapped[AtsProviderDomainType] = mapped_column(
         _ats_provider_domain_type,
         nullable=False,

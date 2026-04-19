@@ -1,6 +1,7 @@
 from enum import StrEnum
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,6 +24,22 @@ class Settings(BaseSettings):
 
     database_url: str
     database_url_sync: str | None = None
+
+    @field_validator("database_url")
+    @classmethod
+    def database_url_no_line_breaks(cls, v: str) -> str:
+        v = v.strip()
+        if any(c in v for c in "\n\r\t\v"):
+            raise ValueError(
+                "database_url must be one line with no tab or line break inside the URL "
+                "(often caused by Enter after the host before :24058)"
+            )
+        if " uv run " in v:
+            raise ValueError(
+                "database_url includes extra words (e.g. uv run); in Fish use two commands: "
+                "set -gx DATABASE_URL 'mysql://...'; and then uv run alembic ..."
+            )
+        return v
 
     db_pool_size: int = 10
     db_max_overflow: int = 20

@@ -35,7 +35,7 @@ class Job(CoreBase):
     ats_provider_id: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("ats_providers.id"), nullable=True
     )
-    external_job_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    external_job_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     canonical_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_label: Mapped[str | None] = mapped_column(Text, nullable=True)
     title: Mapped[str] = mapped_column(Text, nullable=False)

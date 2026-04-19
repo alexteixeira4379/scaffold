@@ -1,40 +1,142 @@
-# Jobito
+# Jobito Scaffold
 
-Python monorepo for the Jobito ecosystem.
+Biblioteca Python compartilhada do ecossistema **Jobito**: modelos de domínio, acesso a dados, migrações e integrações (mensageria e IA) pensadas para serem consumidas por vários serviços sem acoplar implementações concretas de infraestrutura.
 
-## Setup
+## Propósito
+
+Este pacote (`scaffold`) concentra o que é comum entre serviços:
+
+- **Dados**: modelos SQLAlchemy 2 (async), convenções de nomenclatura, sessão async e repositórios por agregado.
+- **Mensageria**: contrato estável (`QueueClient`, formatos de mensagem) com RabbitMQ por baixo e backend em memória para testes.
+- **IA**: contrato estável (`AIClient`, níveis de inferência, saída texto ou JSON) com Groq (API compatível com OpenAI) e backend em memória para testes.
+
+A ideia é que cada serviço dependa de **portas e contratos** (e de `Settings`), e que trocas de broker, de LLM ou de modelo fiquem centralizadas em configuração e em fábricas pequenas (`create_messaging_client`, `create_llm_backend`).
+
+## Requisitos
+
+- Python **3.11+**
+- MySQL acessível pela URL async configurada (por omissão `mysql+asyncmy://…`)
+
+## Instalação
 
 ```bash
 cp .env.example .env
-# edit .env with your database credentials
+```
+
+Edite o `.env` com a URL do MySQL e, se for usar integrações reais, credenciais de RabbitMQ e Groq.
+
+Instalação editável com ferramentas de desenvolvimento:
+
+```bash
 pip install -e ".[dev]"
 ```
 
-## Migration Contexts
+Extras opcionais por domínio (já incluídos em `[dev]` neste projeto):
 
-| Context | Owns |
-|---|---|
-| core | vac_search_definitions, vac_ats_sources, vac_jobs, job_profiles, job_user_sessions, vac_search_definition_profiles, vac_profile_jobs |
-| jcrawler | crawler-specific operational tables |
-| job_ingestion | ingestion pipeline tables |
-| candidate_score_worker | scoring worker tables |
-| nira | nira service tables |
+- **`[messaging]`**: `aio-pika` para RabbitMQ.
+- **`[ai]`**: `httpx` para o cliente Groq.
 
-## Running Migrations
+## Configuração
 
-Always run `core` first:
+Variáveis são lidas a partir do `.env` e expostas em `scaffold.config.Settings` (via `get_settings()`).
+
+| Área | Variáveis principais |
+|------|----------------------|
+| Base de dados | `DATABASE_URL` (async, ex.: `mysql+asyncmy://user:pass@host:3306/db`), `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_ECHO` |
+| Mensageria | `MESSAGING_BACKEND` (`rabbitmq` ou `memory`), `RABBITMQ_URL` (obrigatório se `rabbitmq`) |
+| IA | `AI_PROVIDER` (`groq` ou `memory`), `GROQ_API_KEY`, `GROQ_BASE_URL`, `GROQ_MODEL_*`, `GROQ_TIMEOUT_S` |
+
+Para desenvolvimento local sem RabbitMQ ou Groq, use `MESSAGING_BACKEND=memory` e `AI_PROVIDER=memory`.
+
+## Uso da biblioteca
+
+### Sessão e repositórios
+
+A sessão async é criada a partir de `get_engine()` / `get_session_factory()` em `scaffold.db.session`. Os repositórios em `scaffold.repositories` encapsulam consultas comuns sobre os modelos em `scaffold.models`.
+
+O padrão esperado num serviço é injetar ou construir uma `AsyncSession` (por exemplo a partir de `async_sessionmaker`) e delegar persistência aos repositórios, mantendo a lógica de negócio fora dos módulos de infraestrutura.
+
+### Mensageria
+
+```python
+from scaffold.messaging import QueueClient
+from scaffold.config import get_settings
+
+settings = get_settings()
+queue = QueueClient.from_settings(settings, "nome.da.fila")
+await queue.connect()
+try:
+    await queue.publish({"evento": "exemplo"})
+    msg = await queue.read()
+    if msg is not None:
+        corpo = msg.body
+        tentativas = msg.read_count
+        await queue.delete(msg)
+finally:
+    await queue.close()
+```
+
+O serviço não referencia RabbitMQ diretamente: apenas o nome da fila e o contrato de mensagens. Outro backend pode ser acrescentado na fábrica mantendo a mesma superfície.
+
+### IA
+
+```python
+from scaffold.ai import AIClient, ResponseMode
+from scaffold.config import get_settings
+
+client = AIClient.from_settings(get_settings())
+resultado = await client.basic(
+    "Explique em uma frase o que é um ATS.",
+    ResponseMode.TEXT,
+    system="Respostas curtas em português.",
+)
+texto = resultado.as_text()
+```
+
+Para saída estruturada, use `ResponseMode.JSON` e consuma com `resultado.as_json()`. Os métodos `basic`, `intermediate`, `complex` e `thinking` diferenciam **custo ou capacidade esperada**; o modelo concreto por nível vem só do `Settings` (`GROQ_MODEL_*`), o que permite evoluir modelos sem alterar o código do consumidor.
+
+## Migrações (Alembic)
+
+Neste repositório existe o contexto **`core`**, configurado em `alembic.core.ini` e revisões em `migrations/core/versions/`.
+
+Aplicar migrações:
 
 ```bash
 alembic -c alembic.core.ini upgrade head
-alembic -c alembic.jcrawler.ini upgrade head
-alembic -c alembic.job_ingestion.ini upgrade head
-alembic -c alembic.candidate_score_worker.ini upgrade head
-alembic -c alembic.nira.ini upgrade head
 ```
 
-## Generating New Migrations
+Criar uma nova revisão (com modelos autogerados quando aplicável):
 
 ```bash
-alembic -c alembic.core.ini revision --autogenerate -m "description"
-alembic -c alembic.jcrawler.ini revision --autogenerate -m "description"
+alembic -c alembic.core.ini revision --autogenerate -m "descrição curta"
 ```
+
+Outros contextos de migração (por exemplo `jcrawler`, `job_ingestion`) podem ser acrescentados ao monorepo no mesmo padrão quando existir necessidade e ficheiros `alembic.*.ini` correspondentes.
+
+## Desenvolvimento
+
+```bash
+python3.11 -m pytest
+python3.11 -m ruff check src tests
+python3.11 -m mypy src/scaffold
+```
+
+Os testes cobrem sobretudo os backends em memória de mensageria e IA, de forma a validar contratos sem dependências externas.
+
+## Estrutura do repositório
+
+| Caminho | Conteúdo |
+|---------|----------|
+| `src/scaffold/` | Pacote instalável |
+| `src/scaffold/models/` | Modelos ORM por domínio |
+| `src/scaffold/repositories/` | Acesso a dados por área |
+| `src/scaffold/db/` | Motor, sessão e tipos |
+| `src/scaffold/messaging/` | Contratos, RabbitMQ, memória, `QueueClient` |
+| `src/scaffold/ai/` | Contratos, Groq, memória, `AIClient` |
+| `src/scaffold/config.py` | `Settings`, enums de backend |
+| `migrations/core/` | Ambiente e revisões Alembic do núcleo |
+| `tests/` | Testes automatizados |
+
+## Licença e governança
+
+Defina a licença e o processo de contribuição conforme a política da organização Jobito; este repositório serve como base técnica comum aos serviços que o consomem.

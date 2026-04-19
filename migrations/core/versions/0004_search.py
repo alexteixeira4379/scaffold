@@ -11,21 +11,27 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
+from scaffold.constants.schema_enums import SearchDefinitionScopeType, SearchRunStatus
+from scaffold.db.types import mysql_default, mysql_enum
+
 revision: str = "0004"
 down_revision: Union[str, None] = "0003"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
+
+_search_definition_scope_type = mysql_enum(SearchDefinitionScopeType, "search_definition_scope_type")
+_search_run_status = mysql_enum(SearchRunStatus, "search_run_status")
 
 
 def upgrade() -> None:
     op.create_table(
         "job_discovery_sources",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
-        sa.Column("code", sa.Text(), nullable=False),
+        sa.Column("code", sa.String(128), nullable=False),
         sa.Column("name", sa.Text(), nullable=False),
-        sa.Column("kind", sa.Text(), nullable=False),
+        sa.Column("kind", sa.String(64), nullable=False),
         sa.Column("base_url", sa.Text(), nullable=True),
-        sa.Column("active", sa.Boolean(), server_default="true", nullable=False),
+        sa.Column("active", sa.Boolean(), server_default=sa.text("1"), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_job_discovery_sources")),
@@ -40,9 +46,9 @@ def upgrade() -> None:
         sa.Column("search_term", sa.Text(), nullable=False),
         sa.Column("location", sa.Text(), nullable=True),
         sa.Column("country", sa.String(2), nullable=True),
-        sa.Column("search_filters", sa.JSON(), server_default="{}", nullable=False),
-        sa.Column("is_shared", sa.Boolean(), server_default="false", nullable=False),
-        sa.Column("active", sa.Boolean(), server_default="true", nullable=False),
+        sa.Column("search_filters", sa.JSON(), server_default=sa.text("(JSON_OBJECT())"), nullable=False),
+        sa.Column("is_shared", sa.Boolean(), server_default=sa.text("0"), nullable=False),
+        sa.Column("active", sa.Boolean(), server_default=sa.text("1"), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.ForeignKeyConstraint(["job_discovery_source_id"], ["job_discovery_sources.id"], name=op.f("fk_search_templates_job_discovery_source_id_job_discovery_sources")),
@@ -55,16 +61,16 @@ def upgrade() -> None:
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
         sa.Column("search_template_id", sa.BigInteger(), nullable=True),
         sa.Column("job_discovery_source_id", sa.BigInteger(), nullable=False),
-        sa.Column("scope_type", sa.Text(), nullable=False),
+        sa.Column("scope_type", _search_definition_scope_type, nullable=False),
         sa.Column("candidate_id", sa.BigInteger(), nullable=True),
         sa.Column("candidate_search_preset_id", sa.BigInteger(), nullable=True),
         sa.Column("search_term", sa.Text(), nullable=False),
         sa.Column("location", sa.Text(), nullable=True),
         sa.Column("country", sa.String(2), nullable=True),
-        sa.Column("search_filters", sa.JSON(), server_default="{}", nullable=False),
+        sa.Column("search_filters", sa.JSON(), server_default=sa.text("(JSON_OBJECT())"), nullable=False),
         sa.Column("schedule", sa.Text(), nullable=True),
         sa.Column("priority", sa.SmallInteger(), server_default="1", nullable=False),
-        sa.Column("active", sa.Boolean(), server_default="true", nullable=False),
+        sa.Column("active", sa.Boolean(), server_default=sa.text("1"), nullable=False),
         sa.Column("last_run_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
@@ -84,7 +90,7 @@ def upgrade() -> None:
         sa.Column("candidate_id", sa.BigInteger(), nullable=False),
         sa.Column("candidate_search_preset_id", sa.BigInteger(), nullable=True),
         sa.Column("search_definition_id", sa.BigInteger(), nullable=False),
-        sa.Column("active", sa.Boolean(), server_default="true", nullable=False),
+        sa.Column("active", sa.Boolean(), server_default=sa.text("1"), nullable=False),
         sa.Column("priority", sa.SmallInteger(), server_default="1", nullable=False),
         sa.Column("paused_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("last_matched_at", sa.DateTime(timezone=True), nullable=True),
@@ -101,14 +107,19 @@ def upgrade() -> None:
         "search_runs",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
         sa.Column("search_definition_id", sa.BigInteger(), nullable=False),
-        sa.Column("status", sa.Text(), server_default="pending", nullable=False),
+        sa.Column(
+            "status",
+            _search_run_status,
+            server_default=mysql_default("search_run_status", SearchRunStatus.PENDING),
+            nullable=False,
+        ),
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("finished_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("jobs_found_count", sa.Integer(), server_default="0", nullable=False),
         sa.Column("jobs_new_count", sa.Integer(), server_default="0", nullable=False),
         sa.Column("jobs_updated_count", sa.Integer(), server_default="0", nullable=False),
         sa.Column("error_message", sa.Text(), nullable=True),
-        sa.Column("run_metadata", sa.JSON(), server_default="{}", nullable=False),
+        sa.Column("run_metadata", sa.JSON(), server_default=sa.text("(JSON_OBJECT())"), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.ForeignKeyConstraint(["search_definition_id"], ["search_definitions.id"], name=op.f("fk_search_runs_search_definition_id_search_definitions")),
@@ -122,9 +133,9 @@ def upgrade() -> None:
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
         sa.Column("search_definition_id", sa.BigInteger(), nullable=False),
         sa.Column("search_run_id", sa.BigInteger(), nullable=True),
-        sa.Column("checkpoint_key", sa.Text(), nullable=False),
-        sa.Column("checkpoint_value", sa.JSON(), server_default="{}", nullable=False),
-        sa.Column("is_current", sa.Boolean(), server_default="true", nullable=False),
+        sa.Column("checkpoint_key", sa.String(512), nullable=False),
+        sa.Column("checkpoint_value", sa.JSON(), server_default=sa.text("(JSON_OBJECT())"), nullable=False),
+        sa.Column("is_current", sa.Boolean(), server_default=sa.text("1"), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.ForeignKeyConstraint(["search_definition_id"], ["search_definitions.id"], name=op.f("fk_search_checkpoints_search_definition_id_search_definitions")),

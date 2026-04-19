@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Numeric, Text, UniqueConstraint, func
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Numeric, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from scaffold.base import CoreBase
@@ -17,7 +17,7 @@ class JobMatchScore(CoreBase):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     job_match_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("job_matches.id"), nullable=False)
-    dimension: Mapped[str] = mapped_column(Text, nullable=False)
+    dimension: Mapped[str] = mapped_column(String(128), nullable=False)
     score: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False)
     weight: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Index, Text, func
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Index, String, func
 from sqlalchemy import text as sa_text
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -21,7 +21,7 @@ class CompanyDomain(CoreBase):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     company_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("companies.id"), nullable=False)
-    domain: Mapped[str] = mapped_column(Text, nullable=False)
+    domain: Mapped[str] = mapped_column(String(255), nullable=False)
     domain_type: Mapped[CompanyDomainType] = mapped_column(
         _company_domain_type,
         nullable=False,

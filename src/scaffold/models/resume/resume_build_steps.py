@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Integer, Text, UniqueConstraint, func, JSON
+from sqlalchemy import BigInteger, Boolean, DateTime, Integer, String, Text, UniqueConstraint, func, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from scaffold.base import CoreBase
@@ -20,7 +20,7 @@ class ResumeBuildStep(CoreBase):
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    step_key: Mapped[str] = mapped_column(Text, nullable=False)
+    step_key: Mapped[str] = mapped_column(String(128), nullable=False)
     step_label: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     step_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")

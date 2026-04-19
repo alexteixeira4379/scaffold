@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Index, Numeric, String, Text, func, JSON, text
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Index, Numeric, String, Text, func, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from scaffold.base import CoreBase
@@ -19,12 +19,7 @@ class CandidateSearchPreset(CoreBase):
     __tablename__ = "candidate_search_presets"
     __table_args__ = (
         Index("ix_candidate_search_presets_candidate_active", "candidate_id", "active"),
-        Index(
-            "uq_candidate_search_presets_default",
-            "candidate_id",
-            text("(case when is_default = 1 then 0 else id end)"),
-            unique=True,
-        ),
+        Index("ix_candidate_search_presets_candidate_is_default", "candidate_id", "is_default"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)

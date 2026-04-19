@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Index, Text, UniqueConstraint, func, JSON
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Index, String, Text, UniqueConstraint, func, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from scaffold.base import CoreBase
@@ -23,7 +23,7 @@ class SearchCheckpoint(CoreBase):
     search_run_id: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("search_runs.id"), nullable=True
     )
-    checkpoint_key: Mapped[str] = mapped_column(Text, nullable=False)
+    checkpoint_key: Mapped[str] = mapped_column(String(512), nullable=False)
     checkpoint_value: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, server_default="{}")
     is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
     created_at: Mapped[datetime] = mapped_column(

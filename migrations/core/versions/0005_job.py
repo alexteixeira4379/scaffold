@@ -11,10 +11,18 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
+from scaffold.constants.schema_enums import EmploymentType, ExperienceLevel, JobStatus, RemoteType
+from scaffold.db.types import mysql_default, mysql_enum
+
 revision: str = "0005"
 down_revision: Union[str, None] = "0004"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
+
+_job_status = mysql_enum(JobStatus, "job_status")
+_job_remote_type = mysql_enum(RemoteType, "job_remote_type")
+_job_employment_type = mysql_enum(EmploymentType, "job_employment_type")
+_job_experience_level = mysql_enum(ExperienceLevel, "job_experience_level")
 
 
 def upgrade() -> None:
@@ -24,7 +32,7 @@ def upgrade() -> None:
         sa.Column("company_id", sa.BigInteger(), nullable=True),
         sa.Column("job_discovery_source_id", sa.BigInteger(), nullable=True),
         sa.Column("ats_provider_id", sa.BigInteger(), nullable=True),
-        sa.Column("external_job_id", sa.Text(), nullable=True),
+        sa.Column("external_job_id", sa.String(255), nullable=True),
         sa.Column("canonical_url", sa.Text(), nullable=True),
         sa.Column("source_label", sa.Text(), nullable=True),
         sa.Column("title", sa.Text(), nullable=False),
@@ -33,14 +41,34 @@ def upgrade() -> None:
         sa.Column("country", sa.String(2), nullable=True),
         sa.Column("state", sa.Text(), nullable=True),
         sa.Column("city", sa.Text(), nullable=True),
-        sa.Column("remote_type", sa.Text(), server_default="unknown", nullable=False),
-        sa.Column("employment_type", sa.Text(), server_default="unknown", nullable=False),
-        sa.Column("experience_level", sa.Text(), server_default="unknown", nullable=False),
+        sa.Column(
+            "remote_type",
+            _job_remote_type,
+            server_default=mysql_default("job_remote_type", RemoteType.UNKNOWN),
+            nullable=False,
+        ),
+        sa.Column(
+            "employment_type",
+            _job_employment_type,
+            server_default=mysql_default("job_employment_type", EmploymentType.UNKNOWN),
+            nullable=False,
+        ),
+        sa.Column(
+            "experience_level",
+            _job_experience_level,
+            server_default=mysql_default("job_experience_level", ExperienceLevel.UNKNOWN),
+            nullable=False,
+        ),
         sa.Column("salary_min", sa.Numeric(12, 2), nullable=True),
         sa.Column("salary_max", sa.Numeric(12, 2), nullable=True),
         sa.Column("currency", sa.String(3), nullable=True),
         sa.Column("posted_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("status", sa.Text(), server_default="active", nullable=False),
+        sa.Column(
+            "status",
+            _job_status,
+            server_default=mysql_default("job_status", JobStatus.ACTIVE),
+            nullable=False,
+        ),
         sa.Column("first_seen_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("last_seen_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("company_name_snapshot", sa.Text(), nullable=True),
@@ -63,7 +91,7 @@ def upgrade() -> None:
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
         sa.Column("job_id", sa.BigInteger(), nullable=False),
         sa.Column("source_url", sa.Text(), nullable=True),
-        sa.Column("raw_data", sa.JSON(), server_default="{}", nullable=False),
+        sa.Column("raw_data", sa.JSON(), server_default=sa.text("(JSON_OBJECT())"), nullable=False),
         sa.Column("content_hash", sa.Text(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.ForeignKeyConstraint(["job_id"], ["jobs.id"], name=op.f("fk_job_raw_payloads_job_id_jobs")),
@@ -76,7 +104,7 @@ def upgrade() -> None:
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
         sa.Column("job_id", sa.BigInteger(), nullable=False),
         sa.Column("event_name", sa.Text(), nullable=False),
-        sa.Column("event_data", sa.JSON(), server_default="{}", nullable=False),
+        sa.Column("event_data", sa.JSON(), server_default=sa.text("(JSON_OBJECT())"), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.ForeignKeyConstraint(["job_id"], ["jobs.id"], name=op.f("fk_job_events_job_id_jobs")),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_job_events")),

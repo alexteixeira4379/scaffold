@@ -11,10 +11,15 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
+from scaffold.constants.schema_enums import CompanyDomainType
+from scaffold.db.types import mysql_default, mysql_enum
+
 revision: str = "0002"
 down_revision: Union[str, None] = "0001"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
+
+_company_domain_type = mysql_enum(CompanyDomainType, "company_domain_type")
 
 
 def upgrade() -> None:
@@ -29,7 +34,7 @@ def upgrade() -> None:
         sa.Column("email", sa.Text(), nullable=True),
         sa.Column("phone", sa.Text(), nullable=True),
         sa.Column("country", sa.String(2), nullable=True),
-        sa.Column("active", sa.Boolean(), server_default="true", nullable=False),
+        sa.Column("active", sa.Boolean(), server_default=sa.text("1"), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_companies")),
@@ -39,21 +44,26 @@ def upgrade() -> None:
         "company_domains",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
         sa.Column("company_id", sa.BigInteger(), nullable=False),
-        sa.Column("domain", sa.Text(), nullable=False),
-        sa.Column("domain_type", sa.Text(), server_default="primary", nullable=False),
-        sa.Column("active", sa.Boolean(), server_default="true", nullable=False),
+        sa.Column("domain", sa.String(255), nullable=False),
+        sa.Column(
+            "domain_type",
+            _company_domain_type,
+            server_default=mysql_default("company_domain_type", CompanyDomainType.PRIMARY),
+            nullable=False,
+        ),
+        sa.Column("active", sa.Boolean(), server_default=sa.text("1"), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.ForeignKeyConstraint(["company_id"], ["companies.id"], name=op.f("fk_company_domains_company_id_companies")),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_company_domains")),
     )
-    op.create_index("uq_company_domains_domain_lower", "company_domains", [sa.text("lower(domain)")], unique=True)
+    op.execute("CREATE UNIQUE INDEX uq_company_domains_domain_lower ON company_domains ((LOWER(domain)))")
 
     op.create_table(
         "company_events",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
         sa.Column("company_id", sa.BigInteger(), nullable=False),
         sa.Column("event_name", sa.Text(), nullable=False),
-        sa.Column("event_data", sa.JSON(), server_default="{}", nullable=False),
+        sa.Column("event_data", sa.JSON(), server_default=sa.text("(JSON_OBJECT())"), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.ForeignKeyConstraint(["company_id"], ["companies.id"], name=op.f("fk_company_events_company_id_companies")),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_company_events")),

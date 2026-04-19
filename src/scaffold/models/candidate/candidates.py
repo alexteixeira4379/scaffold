@@ -23,9 +23,9 @@ class Candidate(CoreBase):
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    full_name: Mapped[str] = mapped_column(Text, nullable=False)
-    email: Mapped[str] = mapped_column(Text, nullable=False)
-    phone: Mapped[str | None] = mapped_column(Text, nullable=True)
+    full_name: Mapped[str] = mapped_column(String(512), nullable=False)
+    email: Mapped[str] = mapped_column(String(320), nullable=False)
+    phone: Mapped[str | None] = mapped_column(String(64), nullable=True)
     country: Mapped[str | None] = mapped_column(String(2), nullable=True)
     location: Mapped[str | None] = mapped_column(Text, nullable=True)
     linkedin_url: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -39,8 +39,8 @@ class Candidate(CoreBase):
         nullable=False,
         server_default=mysql_default("candidate_status", CandidateStatus.PENDING),
     )
-    generated_token: Mapped[str | None] = mapped_column(Text, nullable=True, unique=True)
-    track_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    generated_token: Mapped[str | None] = mapped_column(String(128), nullable=True, unique=True)
+    track_code: Mapped[str | None] = mapped_column(String(128), nullable=True)
     cancel_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

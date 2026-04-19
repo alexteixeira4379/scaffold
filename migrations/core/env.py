@@ -20,7 +20,7 @@ target_metadata = CoreBase.metadata
 if alembic_cfg.config_file_name is not None:
     fileConfig(alembic_cfg.config_file_name)
 
-from scaffold.config import get_settings  # noqa: E402
+from scaffold.config import get_settings  # noqa: F401, E402
 
 settings = get_settings()
 

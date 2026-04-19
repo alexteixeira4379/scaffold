@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Index, Integer, Text, func, text
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Index, Integer, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from scaffold.base import CoreBase
@@ -16,12 +16,7 @@ class ResumeVersion(CoreBase):
     __tablename__ = "resume_versions"
     __table_args__ = (
         Index("ix_resume_versions_candidate_id", "candidate_id"),
-        Index(
-            "uq_resume_versions_current",
-            "candidate_id",
-            text("(case when is_current = 1 then 0 else id end)"),
-            unique=True,
-        ),
+        Index("ix_resume_versions_candidate_is_current", "candidate_id", "is_current"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
