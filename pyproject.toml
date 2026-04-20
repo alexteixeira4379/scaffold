@@ -14,11 +14,12 @@ dependencies = [
     "cryptography>=42.0",
     "pydantic-settings>=2.0",
     "python-dotenv>=1.0",
-    "aio-pika>=9.4",
 ]
 
 [project.optional-dependencies]
-messaging = []
+messaging = [
+    "aio-pika>=9.4",
+]
 ai = [
     "httpx>=0.27",
 ]

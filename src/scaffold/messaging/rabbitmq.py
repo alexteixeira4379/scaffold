@@ -10,6 +10,17 @@ if TYPE_CHECKING:
     from aio_pika import IncomingMessage
 
 
+def _import_aio_pika() -> Any:
+    try:
+        import aio_pika
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "RabbitMQ support requires the optional dependency 'aio-pika'. "
+            "Install scaffold[messaging] to enable it."
+        ) from exc
+    return aio_pika
+
+
 class RabbitMQMessaging:
     def __init__(self, url: str) -> None:
         self._url = url
@@ -17,8 +28,7 @@ class RabbitMQMessaging:
         self._channel: Any = None
 
     async def connect(self) -> None:
-        import aio_pika
-
+        aio_pika = _import_aio_pika()
         self._connection = await aio_pika.connect_robust(self._url)
         self._channel = await self._connection.channel()
 
@@ -31,8 +41,7 @@ class RabbitMQMessaging:
             self._connection = None
 
     async def publish(self, message: OutboundMessage) -> None:
-        import aio_pika
-
+        aio_pika = _import_aio_pika()
         if self._channel is None:
             raise RuntimeError("not connected")
         body = json.dumps(message.body).encode()

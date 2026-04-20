@@ -6,9 +6,21 @@ from scaffold.messaging.definitions import get_full_topology
 from scaffold.messaging.topology import MessagingTopology
 
 
-async def sync_topology(url: str, topology: MessagingTopology) -> None:
-    import aio_pika
+def _import_aio_pika():
+    try:
+        import aio_pika
+    except ModuleNotFoundError as exc:
+        print(
+            "RabbitMQ sync requires the optional dependency 'aio-pika'. "
+            "Install scaffold[messaging] to run this command.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1) from exc
+    return aio_pika
 
+
+async def sync_topology(url: str, topology: MessagingTopology) -> None:
+    aio_pika = _import_aio_pika()
     print("Connecting to RabbitMQ...")
     connection = await aio_pika.connect_robust(url)
 

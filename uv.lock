@@ -1051,7 +1051,6 @@ name = "scaffold"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "aio-pika" },
     { name = "alembic" },
     { name = "asyncmy" },
     { name = "cryptography" },
@@ -1073,11 +1072,14 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "ruff" },
 ]
+messaging = [
+    { name = "aio-pika" },
+]
 
 [package.metadata]
 requires-dist = [
-    { name = "aio-pika", specifier = ">=9.4" },
     { name = "aio-pika", marker = "extra == 'dev'", specifier = ">=9.4" },
+    { name = "aio-pika", marker = "extra == 'messaging'", specifier = ">=9.4" },
     { name = "alembic", specifier = ">=1.13" },
     { name = "asyncmy", specifier = ">=0.2" },
     { name = "cryptography", specifier = ">=42.0" },

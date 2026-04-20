@@ -31,6 +31,12 @@ Instalação editável com ferramentas de desenvolvimento:
 pip install -e ".[dev]"
 ```
 
+Instalação mínima da biblioteca, sem integrações opcionais:
+
+```bash
+pip install -e .
+```
+
 Extras opcionais por domínio (já incluídos em `[dev]` neste projeto):
 
 - **`[messaging]`**: `aio-pika` para RabbitMQ.

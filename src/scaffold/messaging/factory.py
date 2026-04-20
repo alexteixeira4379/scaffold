@@ -1,7 +1,6 @@
 from scaffold.config import MessagingBackend, Settings
 from scaffold.messaging.memory import InMemoryMessaging
 from scaffold.messaging.ports import MessagingPort
-from scaffold.messaging.rabbitmq import RabbitMQMessaging
 
 
 def create_messaging_client(settings: Settings) -> MessagingPort:
@@ -9,6 +8,8 @@ def create_messaging_client(settings: Settings) -> MessagingPort:
     if backend == MessagingBackend.MEMORY:
         return InMemoryMessaging()
     if backend == MessagingBackend.RABBITMQ:
+        from scaffold.messaging.rabbitmq import RabbitMQMessaging
+
         url = settings.rabbitmq_url
         if not url:
             raise ValueError("rabbitmq_url is required when messaging_backend is rabbitmq")
