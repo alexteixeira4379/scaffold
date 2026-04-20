@@ -11,8 +11,7 @@ def _import_aio_pika():
         import aio_pika
     except ModuleNotFoundError as exc:
         print(
-            "RabbitMQ sync requires the optional dependency 'aio-pika'. "
-            "Install scaffold[messaging] to run this command.",
+            "RabbitMQ sync requires the 'aio-pika' package to be installed.",
             file=sys.stderr,
         )
         raise SystemExit(1) from exc

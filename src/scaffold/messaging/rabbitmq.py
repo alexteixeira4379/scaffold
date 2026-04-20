@@ -15,8 +15,7 @@ def _import_aio_pika() -> Any:
         import aio_pika
     except ModuleNotFoundError as exc:
         raise RuntimeError(
-            "RabbitMQ support requires the optional dependency 'aio-pika'. "
-            "Install scaffold[messaging] to enable it."
+            "RabbitMQ support requires the 'aio-pika' package to be installed."
         ) from exc
     return aio_pika
 
