@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.railpack.com",
   "deploy": {
-    "startCommand": "uv run alembic -c alembic.core.ini upgrade head && uv run python -m scaffold.messaging.sync"
+    "startCommand": "uv run alembic -c alembic.core.ini upgrade head && uv run --extra messaging python -m scaffold.messaging.sync"
   }
 }
