@@ -3,7 +3,6 @@ from __future__ import annotations
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from scaffold.models.job.job_applications import JobApplication
-from scaffold.models.job.job_discovery_sources import JobDiscoverySource
 from scaffold.models.job.job_events import JobEvent
 from scaffold.models.job.job_raw_payloads import JobRawPayload
 from scaffold.models.job.job_routing_keywords import JobRoutingKeyword
@@ -16,15 +15,15 @@ class JobRepository(AsyncRepository[Job]):
     def __init__(self) -> None:
         super().__init__(Job)
 
-    async def get_by_job_discovery_source_and_external_id(
+    async def get_by_ats_provider_and_external_id(
         self,
         session: AsyncSession,
-        job_discovery_source_id: int,
+        ats_provider_id: int,
         external_job_id: str,
     ) -> Job | None:
         return await self.first_where(
             session,
-            Job.job_discovery_source_id == job_discovery_source_id,
+            Job.ats_provider_id == ats_provider_id,
             Job.external_job_id == external_job_id,
         )
 
@@ -59,14 +58,6 @@ class JobRepository(AsyncRepository[Job]):
             limit=limit,
             offset=offset,
         )
-
-
-class JobDiscoverySourceRepository(AsyncRepository[JobDiscoverySource]):
-    def __init__(self) -> None:
-        super().__init__(JobDiscoverySource)
-
-    async def get_by_code(self, session: AsyncSession, code: str) -> JobDiscoverySource | None:
-        return await self.first_where(session, JobDiscoverySource.code == code)
 
 
 class JobEventRepository(AsyncRepository[JobEvent]):
@@ -157,7 +148,6 @@ class JobRoutingKeywordRepository(AsyncRepository[JobRoutingKeyword]):
 
 
 job_repository = JobRepository()
-job_discovery_source_repository = JobDiscoverySourceRepository()
 job_event_repository = JobEventRepository()
 job_application_repository = JobApplicationRepository()
 job_raw_payload_repository = JobRawPayloadRepository()

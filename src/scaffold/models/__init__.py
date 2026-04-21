@@ -6,6 +6,7 @@ from scaffold.models.application.application_messages import ApplicationMessage
 from scaffold.models.application.application_runs import ApplicationRun
 from scaffold.models.application.application_sessions import ApplicationSession
 from scaffold.models.application.application_steps import ApplicationStep
+from scaffold.models.ats.ats_discovery_sources import AtsDiscoverySource
 from scaffold.models.ats.ats_provider_configs import AtsProviderConfig
 from scaffold.models.ats.ats_provider_domains import AtsProviderDomain
 from scaffold.models.ats.ats_provider_rules import AtsProviderRule
@@ -25,7 +26,6 @@ from scaffold.models.company.company_domains import CompanyDomain
 from scaffold.models.company.company_events import CompanyEvent
 from scaffold.models.job.job_applications import JobApplication
 from scaffold.models.job.job_candidate_eligibilities import JobCandidateEligibility
-from scaffold.models.job.job_discovery_sources import JobDiscoverySource
 from scaffold.models.job.job_events import JobEvent
 from scaffold.models.job.job_match_evaluations import JobMatchEvaluation
 from scaffold.models.job.job_match_events import JobMatchEvent
@@ -57,6 +57,7 @@ __all__ = [
     "ApplicationRun",
     "ApplicationSession",
     "ApplicationStep",
+    "AtsDiscoverySource",
     "AtsProvider",
     "AtsProviderConfig",
     "AtsProviderDomain",
@@ -81,7 +82,6 @@ __all__ = [
     "JobCollectionCheckpoint",
     "JobCollectionDefinition",
     "JobCollectionRun",
-    "JobDiscoverySource",
     "JobEvent",
     "JobMatch",
     "JobMatchEvaluation",

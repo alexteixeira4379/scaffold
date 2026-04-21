@@ -30,7 +30,6 @@ def upgrade() -> None:
         "jobs",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
         sa.Column("company_id", sa.BigInteger(), nullable=True),
-        sa.Column("job_discovery_source_id", sa.BigInteger(), nullable=True),
         sa.Column("ats_provider_id", sa.BigInteger(), nullable=True),
         sa.Column("external_job_id", sa.String(255), nullable=True),
         sa.Column("canonical_url", sa.Text(), nullable=True),
@@ -77,13 +76,11 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.ForeignKeyConstraint(["ats_provider_id"], ["ats_providers.id"], name=op.f("fk_jobs_ats_provider_id_ats_providers")),
         sa.ForeignKeyConstraint(["company_id"], ["companies.id"], name=op.f("fk_jobs_company_id_companies")),
-        sa.ForeignKeyConstraint(["job_discovery_source_id"], ["job_discovery_sources.id"], name=op.f("fk_jobs_job_discovery_source_id_job_discovery_sources")),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_jobs")),
-        sa.UniqueConstraint("job_discovery_source_id", "external_job_id", name="uq_jobs_source_external_id"),
+        sa.UniqueConstraint("ats_provider_id", "external_job_id", name="uq_jobs_ats_provider_external_id"),
     )
     op.create_index("ix_jobs_status", "jobs", ["status"])
     op.create_index("ix_jobs_company_id", "jobs", ["company_id"])
-    op.create_index("ix_jobs_job_discovery_source_id", "jobs", ["job_discovery_source_id"])
     op.create_index("ix_jobs_ats_provider_id", "jobs", ["ats_provider_id"])
 
     op.create_table(

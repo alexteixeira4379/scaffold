@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Index, SmallInteger, String, Text, func, JSON
+from sqlalchemy import BigInteger, Boolean, DateTime, Index, SmallInteger, String, Text, func, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from scaffold.base import CoreBase
@@ -14,9 +14,6 @@ class JobCollectionDefinition(CoreBase):
     __table_args__ = (Index("ix_job_collection_definitions_active", "active"),)
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    job_discovery_source_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("job_discovery_sources.id"), nullable=False
-    )
     search_term: Mapped[str] = mapped_column(Text, nullable=False)
     location: Mapped[str | None] = mapped_column(Text, nullable=True)
     country: Mapped[str | None] = mapped_column(String(2), nullable=True)

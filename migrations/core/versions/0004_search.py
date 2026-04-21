@@ -24,23 +24,8 @@ _search_run_status = mysql_enum(SearchRunStatus, "search_run_status")
 
 def upgrade() -> None:
     op.create_table(
-        "job_discovery_sources",
-        sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
-        sa.Column("code", sa.String(128), nullable=False),
-        sa.Column("name", sa.Text(), nullable=False),
-        sa.Column("kind", sa.String(64), nullable=False),
-        sa.Column("base_url", sa.Text(), nullable=True),
-        sa.Column("active", sa.Boolean(), server_default=sa.text("1"), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.PrimaryKeyConstraint("id", name=op.f("pk_job_discovery_sources")),
-        sa.UniqueConstraint("code", name=op.f("uq_job_discovery_sources_code")),
-    )
-
-    op.create_table(
         "job_collection_definitions",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
-        sa.Column("job_discovery_source_id", sa.BigInteger(), nullable=False),
         sa.Column("search_term", sa.Text(), nullable=False),
         sa.Column("location", sa.Text(), nullable=True),
         sa.Column("country", sa.String(2), nullable=True),
@@ -51,11 +36,6 @@ def upgrade() -> None:
         sa.Column("last_run_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["job_discovery_source_id"],
-            ["job_discovery_sources.id"],
-            name=op.f("fk_job_collection_definitions_job_discovery_source_id_job_discovery_sources"),
-        ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_job_collection_definitions")),
     )
     op.create_index("ix_job_collection_definitions_active", "job_collection_definitions", ["active"])
@@ -127,4 +107,3 @@ def downgrade() -> None:
     op.drop_table("job_collection_checkpoints")
     op.drop_table("job_collection_runs")
     op.drop_table("job_collection_definitions")
-    op.drop_table("job_discovery_sources")

@@ -20,18 +20,12 @@ class Job(CoreBase):
     __table_args__ = (
         Index("ix_jobs_status", "status"),
         Index("ix_jobs_company_id", "company_id"),
-        Index("ix_jobs_job_discovery_source_id", "job_discovery_source_id"),
         Index("ix_jobs_ats_provider_id", "ats_provider_id"),
-        UniqueConstraint(
-            "job_discovery_source_id", "external_job_id", name="uq_jobs_source_external_id"
-        ),
+        UniqueConstraint("ats_provider_id", "external_job_id", name="uq_jobs_ats_provider_external_id"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     company_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("companies.id"), nullable=True)
-    job_discovery_source_id: Mapped[int | None] = mapped_column(
-        BigInteger, ForeignKey("job_discovery_sources.id"), nullable=True
-    )
     ats_provider_id: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("ats_providers.id"), nullable=True
     )

@@ -103,8 +103,37 @@ def upgrade() -> None:
     )
     op.create_index("ix_ats_provider_rules_ats_provider_id", "ats_provider_rules", ["ats_provider_id"])
 
+    op.create_table(
+        "ats_discovery_sources",
+        sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
+        sa.Column("ats_provider_id", sa.BigInteger(), nullable=True),
+        sa.Column("code", sa.String(128), nullable=False),
+        sa.Column("name", sa.Text(), nullable=False),
+        sa.Column("kind", sa.String(64), nullable=False),
+        sa.Column("base_url", sa.Text(), nullable=True),
+        sa.Column("active", sa.Boolean(), server_default=sa.text("1"), nullable=False),
+        sa.Column("checkpoint_key", sa.String(512), nullable=True),
+        sa.Column("checkpoint_value", sa.JSON(), server_default=sa.text("(JSON_OBJECT())"), nullable=False),
+        sa.Column("checkpoint_updated_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["ats_provider_id"],
+            ["ats_providers.id"],
+            name=op.f("fk_ats_discovery_sources_ats_provider_id_ats_providers"),
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_ats_discovery_sources")),
+        sa.UniqueConstraint("code", name=op.f("uq_ats_discovery_sources_code")),
+    )
+    op.create_index(
+        "ix_ats_discovery_sources_ats_provider_id",
+        "ats_discovery_sources",
+        ["ats_provider_id"],
+    )
+
 
 def downgrade() -> None:
+    op.drop_table("ats_discovery_sources")
     op.drop_table("ats_provider_rules")
     op.drop_table("ats_provider_configs")
     op.drop_table("ats_provider_domains")

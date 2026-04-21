@@ -28,23 +28,6 @@ class JobCollectionDefinitionRepository(AsyncRepository[JobCollectionDefinition]
             offset=offset,
         )
 
-    async def list_by_job_discovery_source_id(
-        self,
-        session: AsyncSession,
-        job_discovery_source_id: int,
-        *,
-        limit: int | None = None,
-        offset: int | None = None,
-    ) -> list[JobCollectionDefinition]:
-        return await self.list_where(
-            session,
-            JobCollectionDefinition.job_discovery_source_id == job_discovery_source_id,
-            order_by=(JobCollectionDefinition.priority, JobCollectionDefinition.id),
-            limit=limit,
-            offset=offset,
-        )
-
-
 class JobCollectionRunRepository(AsyncRepository[JobCollectionRun]):
     def __init__(self) -> None:
         super().__init__(JobCollectionRun)

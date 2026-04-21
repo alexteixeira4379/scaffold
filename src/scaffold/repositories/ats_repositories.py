@@ -2,12 +2,37 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from scaffold.models.ats.ats_discovery_sources import AtsDiscoverySource
 from scaffold.models.ats.ats_provider_configs import AtsProviderConfig
 from scaffold.models.ats.ats_provider_domains import AtsProviderDomain
 from scaffold.models.ats.ats_provider_rules import AtsProviderRule
 from scaffold.models.ats.ats_providers import AtsProvider
 
 from scaffold.repositories.base import AsyncRepository
+
+
+class AtsDiscoverySourceRepository(AsyncRepository[AtsDiscoverySource]):
+    def __init__(self) -> None:
+        super().__init__(AtsDiscoverySource)
+
+    async def get_by_code(self, session: AsyncSession, code: str) -> AtsDiscoverySource | None:
+        return await self.first_where(session, AtsDiscoverySource.code == code)
+
+    async def list_by_ats_provider_id(
+        self,
+        session: AsyncSession,
+        ats_provider_id: int,
+        *,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[AtsDiscoverySource]:
+        return await self.list_where(
+            session,
+            AtsDiscoverySource.ats_provider_id == ats_provider_id,
+            order_by=(AtsDiscoverySource.code,),
+            limit=limit,
+            offset=offset,
+        )
 
 
 class AtsProviderRepository(AsyncRepository[AtsProvider]):
@@ -96,6 +121,7 @@ class AtsProviderRuleRepository(AsyncRepository[AtsProviderRule]):
         )
 
 
+ats_discovery_source_repository = AtsDiscoverySourceRepository()
 ats_provider_repository = AtsProviderRepository()
 ats_provider_config_repository = AtsProviderConfigRepository()
 ats_provider_domain_repository = AtsProviderDomainRepository()
