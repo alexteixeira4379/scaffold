@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from sqlalchemy import case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from scaffold.models.ats.ats_discovery_sources import AtsDiscoverySource
@@ -9,6 +10,14 @@ from scaffold.models.ats.ats_provider_rules import AtsProviderRule
 from scaffold.models.ats.ats_providers import AtsProvider
 
 from scaffold.repositories.base import AsyncRepository
+
+
+def _last_collected_at_order_by() -> tuple[object, object, object]:
+    return (
+        case((AtsDiscoverySource.last_collected_at.is_(None), 0), else_=1),
+        AtsDiscoverySource.last_collected_at.asc(),
+        AtsDiscoverySource.code,
+    )
 
 
 class AtsDiscoverySourceRepository(AsyncRepository[AtsDiscoverySource]):
@@ -29,10 +38,7 @@ class AtsDiscoverySourceRepository(AsyncRepository[AtsDiscoverySource]):
         return await self.list_where(
             session,
             AtsDiscoverySource.ats_provider_id == ats_provider_id,
-            order_by=(
-                AtsDiscoverySource.last_collected_at.asc().nullsfirst(),
-                AtsDiscoverySource.code,
-            ),
+            order_by=_last_collected_at_order_by(),
             limit=limit,
             offset=offset,
         )
@@ -52,10 +58,7 @@ class AtsDiscoverySourceRepository(AsyncRepository[AtsDiscoverySource]):
         return await self.list_where(
             session,
             *criteria,
-            order_by=(
-                AtsDiscoverySource.last_collected_at.asc().nullsfirst(),
-                AtsDiscoverySource.code,
-            ),
+            order_by=_last_collected_at_order_by(),
             limit=limit,
             offset=offset,
         )
@@ -73,10 +76,7 @@ class AtsDiscoverySourceRepository(AsyncRepository[AtsDiscoverySource]):
         sources = await self.list_where(
             session,
             *criteria,
-            order_by=(
-                AtsDiscoverySource.last_collected_at.asc().nullsfirst(),
-                AtsDiscoverySource.code,
-            ),
+            order_by=_last_collected_at_order_by(),
             limit=1,
         )
         return sources[0] if sources else None
