@@ -115,6 +115,7 @@ def upgrade() -> None:
         sa.Column("checkpoint_key", sa.String(512), nullable=True),
         sa.Column("checkpoint_value", sa.JSON(), server_default=sa.text("(JSON_OBJECT())"), nullable=False),
         sa.Column("checkpoint_updated_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("last_collected_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.ForeignKeyConstraint(

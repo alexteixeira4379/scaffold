@@ -29,6 +29,76 @@ class AtsDiscoverySourceRepository(AsyncRepository[AtsDiscoverySource]):
         return await self.list_where(
             session,
             AtsDiscoverySource.ats_provider_id == ats_provider_id,
+            order_by=(
+                AtsDiscoverySource.last_collected_at.asc().nullsfirst(),
+                AtsDiscoverySource.code,
+            ),
+            limit=limit,
+            offset=offset,
+        )
+
+    async def list_active(
+        self,
+        session: AsyncSession,
+        *,
+        ats_provider_id: int | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[AtsDiscoverySource]:
+        criteria = [AtsDiscoverySource.active.is_(True)]
+        if ats_provider_id is not None:
+            criteria.append(AtsDiscoverySource.ats_provider_id == ats_provider_id)
+
+        return await self.list_where(
+            session,
+            *criteria,
+            order_by=(
+                AtsDiscoverySource.last_collected_at.asc().nullsfirst(),
+                AtsDiscoverySource.code,
+            ),
+            limit=limit,
+            offset=offset,
+        )
+
+    async def get_next_to_collect(
+        self,
+        session: AsyncSession,
+        *,
+        ats_provider_id: int | None = None,
+    ) -> AtsDiscoverySource | None:
+        criteria = [AtsDiscoverySource.active.is_(True)]
+        if ats_provider_id is not None:
+            criteria.append(AtsDiscoverySource.ats_provider_id == ats_provider_id)
+
+        sources = await self.list_where(
+            session,
+            *criteria,
+            order_by=(
+                AtsDiscoverySource.last_collected_at.asc().nullsfirst(),
+                AtsDiscoverySource.code,
+            ),
+            limit=1,
+        )
+        return sources[0] if sources else None
+
+    async def list_never_collected(
+        self,
+        session: AsyncSession,
+        *,
+        ats_provider_id: int | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[AtsDiscoverySource]:
+        criteria = [
+            AtsDiscoverySource.active.is_(True),
+            AtsDiscoverySource.last_collected_at.is_(None),
+        ]
+        if ats_provider_id is not None:
+            criteria.append(AtsDiscoverySource.ats_provider_id == ats_provider_id)
+
+        return await self.list_where(
+            session,
+            *criteria,
             order_by=(AtsDiscoverySource.code,),
             limit=limit,
             offset=offset,
