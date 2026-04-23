@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import case
+from sqlalchemy import case, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from scaffold.models.ats.ats_discovery_sources import AtsDiscoverySource
@@ -63,6 +63,40 @@ class AtsDiscoverySourceRepository(AsyncRepository[AtsDiscoverySource]):
             limit=limit,
             offset=offset,
         )
+
+    async def list_ready(
+        self,
+        session: AsyncSession,
+        *,
+        default_interval_seconds: int = 1800,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[AtsDiscoverySource]:
+        effective_interval = func.coalesce(AtsProviderSchedule.interval_seconds, default_interval_seconds)
+        cutoff = func.timestampadd(text("SECOND"), -effective_interval, func.now())
+
+        stmt = (
+            select(AtsDiscoverySource)
+            .outerjoin(
+                AtsProviderSchedule,
+                (AtsProviderSchedule.ats_provider_id == AtsDiscoverySource.ats_provider_id)
+                & AtsProviderSchedule.active.is_(True),
+            )
+            .where(AtsDiscoverySource.active.is_(True))
+            .where(
+                AtsDiscoverySource.last_collected_at.is_(None)
+                | (AtsDiscoverySource.last_collected_at <= cutoff)
+            )
+            .order_by(*_last_collected_at_order_by())
+        )
+
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        if offset is not None:
+            stmt = stmt.offset(offset)
+
+        result = await session.execute(stmt)
+        return list(result.scalars().all())
 
     async def get_next_to_collect(
         self,
