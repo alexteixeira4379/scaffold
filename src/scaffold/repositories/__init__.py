@@ -22,11 +22,13 @@ from scaffold.repositories.ats_repositories import (
     AtsProviderDomainRepository,
     AtsProviderRepository,
     AtsProviderRuleRepository,
+    AtsProviderScheduleRepository,
     ats_discovery_source_repository,
     ats_provider_config_repository,
     ats_provider_domain_repository,
     ats_provider_repository,
     ats_provider_rule_repository,
+    ats_provider_schedule_repository,
 )
 from scaffold.repositories.base import AsyncRepository
 from scaffold.repositories.billing_repositories import (
@@ -133,6 +135,7 @@ __all__ = [
     "AtsProviderDomainRepository",
     "AtsProviderRepository",
     "AtsProviderRuleRepository",
+    "AtsProviderScheduleRepository",
     "BillingCustomerRepository",
     "BillingEventRepository",
     "BillingPaymentRepository",
@@ -182,6 +185,7 @@ __all__ = [
     "ats_provider_domain_repository",
     "ats_provider_repository",
     "ats_provider_rule_repository",
+    "ats_provider_schedule_repository",
     "billing_customer_repository",
     "billing_event_repository",
     "billing_payment_repository",

@@ -132,8 +132,26 @@ def upgrade() -> None:
         ["ats_provider_id"],
     )
 
+    op.create_table(
+        "ats_provider_schedules",
+        sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
+        sa.Column("ats_provider_id", sa.BigInteger(), nullable=False),
+        sa.Column("interval_seconds", sa.Integer(), server_default="3600", nullable=False),
+        sa.Column("active", sa.Boolean(), server_default=sa.text("1"), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["ats_provider_id"],
+            ["ats_providers.id"],
+            name=op.f("fk_ats_provider_schedules_ats_provider_id_ats_providers"),
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_ats_provider_schedules")),
+        sa.UniqueConstraint("ats_provider_id", name=op.f("uq_ats_provider_schedules_ats_provider_id")),
+    )
+
 
 def downgrade() -> None:
+    op.drop_table("ats_provider_schedules")
     op.drop_table("ats_discovery_sources")
     op.drop_table("ats_provider_rules")
     op.drop_table("ats_provider_configs")

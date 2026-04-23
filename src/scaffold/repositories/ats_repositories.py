@@ -7,6 +7,7 @@ from scaffold.models.ats.ats_discovery_sources import AtsDiscoverySource
 from scaffold.models.ats.ats_provider_configs import AtsProviderConfig
 from scaffold.models.ats.ats_provider_domains import AtsProviderDomain
 from scaffold.models.ats.ats_provider_rules import AtsProviderRule
+from scaffold.models.ats.ats_provider_schedules import AtsProviderSchedule
 from scaffold.models.ats.ats_providers import AtsProvider
 
 from scaffold.repositories.base import AsyncRepository
@@ -191,8 +192,36 @@ class AtsProviderRuleRepository(AsyncRepository[AtsProviderRule]):
         )
 
 
+class AtsProviderScheduleRepository(AsyncRepository[AtsProviderSchedule]):
+    def __init__(self) -> None:
+        super().__init__(AtsProviderSchedule)
+
+    async def get_by_ats_provider_id(
+        self, session: AsyncSession, ats_provider_id: int
+    ) -> AtsProviderSchedule | None:
+        return await self.first_where(
+            session, AtsProviderSchedule.ats_provider_id == ats_provider_id
+        )
+
+    async def list_active(
+        self,
+        session: AsyncSession,
+        *,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[AtsProviderSchedule]:
+        return await self.list_where(
+            session,
+            AtsProviderSchedule.active.is_(True),
+            order_by=(AtsProviderSchedule.ats_provider_id,),
+            limit=limit,
+            offset=offset,
+        )
+
+
 ats_discovery_source_repository = AtsDiscoverySourceRepository()
 ats_provider_repository = AtsProviderRepository()
 ats_provider_config_repository = AtsProviderConfigRepository()
 ats_provider_domain_repository = AtsProviderDomainRepository()
 ats_provider_rule_repository = AtsProviderRuleRepository()
+ats_provider_schedule_repository = AtsProviderScheduleRepository()

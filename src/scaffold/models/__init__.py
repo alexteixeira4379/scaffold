@@ -10,6 +10,7 @@ from scaffold.models.ats.ats_discovery_sources import AtsDiscoverySource
 from scaffold.models.ats.ats_provider_configs import AtsProviderConfig
 from scaffold.models.ats.ats_provider_domains import AtsProviderDomain
 from scaffold.models.ats.ats_provider_rules import AtsProviderRule
+from scaffold.models.ats.ats_provider_schedules import AtsProviderSchedule
 from scaffold.models.ats.ats_providers import AtsProvider
 from scaffold.models.billing.billing_customers import BillingCustomer
 from scaffold.models.billing.billing_events import BillingEvent
@@ -62,6 +63,7 @@ __all__ = [
     "AtsProviderConfig",
     "AtsProviderDomain",
     "AtsProviderRule",
+    "AtsProviderSchedule",
     "BillingCustomer",
     "BillingEvent",
     "BillingPayment",
