@@ -8,6 +8,7 @@ Este pacote (`scaffold`) concentra o que é comum entre serviços:
 
 - **Dados**: modelos SQLAlchemy 2 (async), convenções de nomenclatura, sessão async e repositórios por agregado.
 - **Mensageria**: contrato estável (`QueueClient`, formatos de mensagem) com RabbitMQ por baixo e backend em memória para testes.
+- **Cache**: contrato estável (`CacheClient`) com URL configurável e Redis isolado como implementação.
 - **IA**: contrato estável (`AIClient`, níveis de inferência, saída texto ou JSON) com Groq (API compatível com OpenAI) e backend em memória para testes.
 
 A ideia é que cada serviço dependa de **portas e contratos** (e de `Settings`), e que trocas de broker, de LLM ou de modelo fiquem centralizadas em configuração e em fábricas pequenas (`create_messaging_client`, `create_llm_backend`).
@@ -23,7 +24,7 @@ A ideia é que cada serviço dependa de **portas e contratos** (e de `Settings`)
 cp .env.example .env
 ```
 
-Edite o `.env` com a URL do MySQL e, se for usar integrações reais, credenciais de RabbitMQ e Groq.
+Edite o `.env` com a URL do MySQL e, se for usar integrações reais, credenciais de RabbitMQ, cache e Groq.
 
 Instalação editável com ferramentas de desenvolvimento:
 
@@ -49,6 +50,7 @@ Variáveis são lidas a partir do `.env` e expostas em `scaffold.config.Settings
 |------|----------------------|
 | Base de dados | `DATABASE_URL` (async, ex.: `mysql+asyncmy://user:pass@host:3306/db`), `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_ECHO` |
 | Mensageria | `MESSAGING_BACKEND` (`rabbitmq` ou `memory`), `RABBITMQ_URL` (obrigatório se `rabbitmq`) |
+| Cache | `CACHE_URL` (URL completa do backend de cache, ex.: `redis://localhost:6379/0`) |
 | IA | `AI_PROVIDER` (`groq` ou `memory`), `GROQ_API_KEY`, `GROQ_BASE_URL`, `GROQ_MODEL_*`, `GROQ_TIMEOUT_S` |
 
 Para desenvolvimento local sem RabbitMQ ou Groq, use `MESSAGING_BACKEND=memory` e `AI_PROVIDER=memory`.
@@ -82,6 +84,25 @@ finally:
 ```
 
 O serviço não referencia RabbitMQ diretamente: apenas o nome da fila e o contrato de mensagens. Outro backend pode ser acrescentado na fábrica mantendo a mesma superfície.
+
+### Cache
+
+```python
+from scaffold.cache import CacheClient
+from scaffold.config import get_settings
+
+cache = CacheClient.from_settings(get_settings())
+await cache.connect()
+try:
+    await cache.set("job:url:hash", "123", ttl_s=300)
+    valor = await cache.get("job:url:hash")
+    await cache.set_json("job:payload", {"id": 123}, ttl_s=300)
+    payload = await cache.get_json("job:payload")
+finally:
+    await cache.close()
+```
+
+O serviço usa apenas operações de cache. O backend concreto fica atrás de `CACHE_URL` e da factory do scaffold.
 
 ### IA
 

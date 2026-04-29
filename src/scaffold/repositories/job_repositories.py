@@ -27,6 +27,9 @@ class JobRepository(AsyncRepository[Job]):
             Job.external_job_id == external_job_id,
         )
 
+    async def get_by_url_hash(self, session: AsyncSession, url_hash: str) -> Job | None:
+        return await self.first_where(session, Job.url_hash == url_hash)
+
     async def list_by_company_id(
         self,
         session: AsyncSession,

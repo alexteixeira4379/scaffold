@@ -49,6 +49,8 @@ class Settings(BaseSettings):
     messaging_backend: MessagingBackend = MessagingBackend.RABBITMQ
     rabbitmq_url: str | None = None
 
+    cache_url: str | None = None
+
     ai_provider: AIProvider = AIProvider.GROQ
     groq_api_key: str | None = None
     groq_base_url: str = "https://api.groq.com/openai/v1"

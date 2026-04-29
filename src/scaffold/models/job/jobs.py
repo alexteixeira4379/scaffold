@@ -21,6 +21,7 @@ class Job(CoreBase):
         Index("ix_jobs_status", "status"),
         Index("ix_jobs_company_id", "company_id"),
         Index("ix_jobs_ats_provider_id", "ats_provider_id"),
+        Index("ix_jobs_url_hash", "url_hash", unique=True),
         UniqueConstraint("ats_provider_id", "external_job_id", name="uq_jobs_ats_provider_external_id"),
     )
 
@@ -31,6 +32,7 @@ class Job(CoreBase):
     )
     external_job_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     canonical_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    url_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     source_label: Mapped[str | None] = mapped_column(Text, nullable=True)
     title: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -33,6 +33,7 @@ def upgrade() -> None:
         sa.Column("ats_provider_id", sa.BigInteger(), nullable=True),
         sa.Column("external_job_id", sa.String(255), nullable=True),
         sa.Column("canonical_url", sa.Text(), nullable=True),
+        sa.Column("url_hash", sa.String(64), nullable=True),
         sa.Column("source_label", sa.Text(), nullable=True),
         sa.Column("title", sa.Text(), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
@@ -82,6 +83,7 @@ def upgrade() -> None:
     op.create_index("ix_jobs_status", "jobs", ["status"])
     op.create_index("ix_jobs_company_id", "jobs", ["company_id"])
     op.create_index("ix_jobs_ats_provider_id", "jobs", ["ats_provider_id"])
+    op.create_index("ix_jobs_url_hash", "jobs", ["url_hash"], unique=True)
 
     op.create_table(
         "job_raw_payloads",

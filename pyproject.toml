@@ -15,6 +15,7 @@ dependencies = [
     "pydantic-settings>=2.0",
     "python-dotenv>=1.0",
     "aio-pika>=9.4",
+    "redis>=5.0",
 ]
 
 [project.optional-dependencies]
