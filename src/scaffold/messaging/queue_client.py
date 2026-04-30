@@ -28,6 +28,14 @@ class QueueClient:
     async def close(self) -> None:
         await self._broker.close()
 
+    async def reconnect(self) -> None:
+        from scaffold.messaging.memory import InMemoryMessaging
+
+        if isinstance(self._broker, InMemoryMessaging):
+            return
+        await self._broker.close()
+        await self._broker.connect()
+
     async def publish(
         self,
         body: dict[str, object],
@@ -42,6 +50,29 @@ class QueueClient:
                 correlation_id=correlation_id,
                 headers=dict(headers or {}),
             ),
+        )
+
+    async def publish_with_retry(
+        self,
+        body: dict[str, object],
+        *,
+        correlation_id: str | None = None,
+        headers: dict[str, str] | None = None,
+        max_attempts: int = 8,
+        retry_base_s: float = 0.45,
+        retry_max_s: float = 30.0,
+    ) -> None:
+        from scaffold.messaging.resilience import publish_with_retry
+
+        await publish_with_retry(
+            self,
+            body,
+            correlation_id=correlation_id,
+            headers=headers,
+            reconnect=self.reconnect,
+            max_attempts=max_attempts,
+            retry_base_s=retry_base_s,
+            retry_max_s=retry_max_s,
         )
 
     async def read(self) -> FetchedMessage | None:

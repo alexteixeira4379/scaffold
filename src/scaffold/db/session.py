@@ -13,12 +13,24 @@ _engine: AsyncEngine | None = None
 _session_factory: async_sessionmaker[AsyncSession] | None = None
 
 
+def _async_database_url(url: str) -> str:
+    raw = url.strip()
+    if raw.startswith("mysql+asyncmy://") or raw.startswith("mysql+aiomysql://"):
+        return raw
+    if raw.startswith("mysql+pymysql://"):
+        return "mysql+asyncmy://" + raw.removeprefix("mysql+pymysql://")
+    if raw.startswith("mysql://"):
+        return "mysql+asyncmy://" + raw.removeprefix("mysql://")
+    return raw
+
+
 def get_engine() -> AsyncEngine:
     global _engine
     if _engine is None:
         settings = get_settings()
+        db_url = _async_database_url(str(settings.database_url))
         _engine = create_async_engine(
-            str(settings.database_url),
+            db_url,
             pool_size=settings.db_pool_size,
             max_overflow=settings.db_max_overflow,
             pool_pre_ping=settings.db_pool_pre_ping,

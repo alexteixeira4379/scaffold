@@ -20,6 +20,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
+        extra="ignore",
     )
 
     database_url: str
@@ -48,6 +49,8 @@ class Settings(BaseSettings):
 
     messaging_backend: MessagingBackend = MessagingBackend.RABBITMQ
     rabbitmq_url: str | None = None
+    rabbitmq_heartbeat_s: int = 30
+    rabbitmq_timeout_s: float = 15.0
 
     cache_url: str | None = None
 

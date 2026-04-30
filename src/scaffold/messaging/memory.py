@@ -38,7 +38,8 @@ class InMemoryMessaging:
                 "headers": message.headers,
                 "delivery_attempts": 0,
             },
-        ).encode()
+            ensure_ascii=False,
+        ).encode("utf-8")
         key = message.queue
         if self._waiters[key]:
             w = self._waiters[key].pop(0)
@@ -113,7 +114,7 @@ class InMemoryMessaging:
             attempts = 0
         attempts += 1
         data["delivery_attempts"] = attempts
-        new_raw = json.dumps(data).encode()
+        new_raw = json.dumps(data, ensure_ascii=False).encode("utf-8")
         token = uuid.uuid4().hex
         self._pending[queue_name][token] = new_raw
 

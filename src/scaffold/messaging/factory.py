@@ -13,5 +13,9 @@ def create_messaging_client(settings: Settings) -> MessagingPort:
         url = settings.rabbitmq_url
         if not url:
             raise ValueError("rabbitmq_url is required when messaging_backend is rabbitmq")
-        return RabbitMQMessaging(url)
+        return RabbitMQMessaging(
+            url,
+            heartbeat_s=settings.rabbitmq_heartbeat_s,
+            timeout_s=settings.rabbitmq_timeout_s,
+        )
     raise ValueError(f"unsupported messaging_backend: {backend!r}")
