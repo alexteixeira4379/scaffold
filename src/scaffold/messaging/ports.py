@@ -13,6 +13,7 @@ class FetchedMessage:
         "_finalized",
         "_ack",
         "_nack",
+        "_transfer",
     )
 
     def __init__(
@@ -23,6 +24,7 @@ class FetchedMessage:
         queue_name: str,
         ack: Callable[[], Awaitable[None]],
         nack: Callable[[bool], Awaitable[None]],
+        transfer: Callable[[str, dict[str, object], str | None, dict[str, str] | None], Awaitable[None]] | None = None,
     ) -> None:
         self.body = body
         self.read_count = read_count
@@ -31,6 +33,7 @@ class FetchedMessage:
         self._finalized = False
         self._ack = ack
         self._nack = nack
+        self._transfer = transfer
 
     @property
     def queue_name(self) -> str:
@@ -46,6 +49,21 @@ class FetchedMessage:
         if self._finalized:
             raise RuntimeError("already finalized")
         await self._nack(requeue)
+        self._finalized = True
+
+    async def transfer(
+        self,
+        queue_name: str,
+        body: dict[str, object],
+        *,
+        correlation_id: str | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> None:
+        if self._finalized:
+            raise RuntimeError("already finalized")
+        if self._transfer is None:
+            raise RuntimeError("transfer is not supported for this message")
+        await self._transfer(queue_name, body, correlation_id, headers)
         self._finalized = True
 
 

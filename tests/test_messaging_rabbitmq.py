@@ -10,13 +10,20 @@ from scaffold.messaging.rabbitmq import RabbitMQMessaging
 
 
 class FakeChannel:
+    def __init__(self) -> None:
+        self.kwargs: dict[str, object] | None = None
+
     async def close(self) -> None:
         pass
 
 
 class FakeConnection:
-    async def channel(self) -> FakeChannel:
-        return FakeChannel()
+    def __init__(self) -> None:
+        self.channel_instance = FakeChannel()
+
+    async def channel(self, **kwargs) -> FakeChannel:
+        self.channel_instance.kwargs = kwargs
+        return self.channel_instance
 
     async def close(self) -> None:
         pass
@@ -52,6 +59,28 @@ async def test_rabbitmq_connect_uses_heartbeat_and_timeout(monkeypatch) -> None:
             "timeout": 7.5,
         }
     ]
+    assert broker._channel is None
+    assert broker._connection is None
+
+
+@pytest.mark.asyncio
+async def test_rabbitmq_connect_disables_publisher_confirms(monkeypatch) -> None:
+    connection = FakeConnection()
+
+    async def connect_robust(url: str, **kwargs):
+        return connection
+
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "aio_pika",
+        types.SimpleNamespace(connect_robust=connect_robust),
+    )
+
+    broker = RabbitMQMessaging("amqp://guest:guest@localhost:5672/")
+
+    await broker.connect()
+
+    assert connection.channel_instance.kwargs == {"publisher_confirms": False}
 
 
 def test_factory_passes_rabbitmq_connection_tuning() -> None:

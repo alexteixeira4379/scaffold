@@ -35,7 +35,7 @@ class RabbitMQMessaging:
             heartbeat=self._heartbeat_s,
             timeout=self._timeout_s,
         )
-        self._channel = await self._connection.channel()
+        self._channel = await self._connection.channel(publisher_confirms=False)
 
     async def close(self) -> None:
         if self._channel is not None:
@@ -80,6 +80,27 @@ class RabbitMQMessaging:
         async def nack(requeue: bool = False) -> None:
             await incoming.nack(requeue=requeue)
 
+        async def transfer(
+            destination_queue: str,
+            destination_body: dict[str, object],
+            destination_correlation_id: str | None,
+            headers: dict[str, str] | None,
+        ) -> None:
+            aio_pika = _import_aio_pika()
+            channel = incoming.channel
+            body = json.dumps(destination_body, ensure_ascii=False).encode("utf-8")
+            hdrs: dict[str, str] = dict(headers or {})
+            amqp_message = aio_pika.Message(
+                body=body,
+                content_type="application/json",
+                delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+                correlation_id=destination_correlation_id or None,
+                headers=cast(Any, hdrs or None),
+            )
+            async with channel.transaction():
+                await channel.default_exchange.publish(amqp_message, routing_key=destination_queue)
+                await incoming.ack()
+
         hdrs = incoming.headers
         read_count = read_count_from_amqp(bool(incoming.redelivered), hdrs)
         correlation_id = incoming.correlation_id
@@ -92,7 +113,7 @@ class RabbitMQMessaging:
             await incoming.nack(requeue=False)
             return None
         body: dict[str, object] = {str(k): v for k, v in parsed.items()}
-        return FetchedMessage(body, read_count, correlation_id, queue_name, ack, nack)
+        return FetchedMessage(body, read_count, correlation_id, queue_name, ack, nack, transfer)
 
     async def consume(
         self,

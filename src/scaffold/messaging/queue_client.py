@@ -25,6 +25,10 @@ class QueueClient:
     async def connect(self) -> None:
         await self._broker.connect()
 
+    @property
+    def queue_name(self) -> str:
+        return self._queue_name
+
     async def close(self) -> None:
         await self._broker.close()
 

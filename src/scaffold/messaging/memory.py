@@ -126,7 +126,24 @@ class InMemoryMessaging:
             if requeue:
                 self._queues[queue_name].appendleft(new_raw)
 
-        return FetchedMessage(body, attempts, correlation_id, queue_name, ack, nack)
+        async def transfer(
+            destination_queue: str,
+            destination_body: dict[str, object],
+            destination_correlation_id: str | None,
+            headers: dict[str, str] | None,
+        ) -> None:
+            if self._closed:
+                raise RuntimeError("closed")
+            outbound = OutboundMessage(
+                queue=destination_queue,
+                body=destination_body,
+                correlation_id=destination_correlation_id,
+                headers=dict(headers or {}),
+            )
+            await self.publish(outbound)
+            self._pending[queue_name].pop(token, None)
+
+        return FetchedMessage(body, attempts, correlation_id, queue_name, ack, nack, transfer)
 
     async def _next_delivery(self, name: str) -> bytes | None:
         if self._closed:
