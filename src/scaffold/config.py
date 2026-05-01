@@ -5,6 +5,10 @@ from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+DEFAULT_CACHE_MAX_RETRIES = 4
+DEFAULT_CACHE_RETRY_BASE_DELAY_S = 0.08
+
+
 class MessagingBackend(StrEnum):
     RABBITMQ = "rabbitmq"
     MEMORY = "memory"
@@ -53,6 +57,8 @@ class Settings(BaseSettings):
     rabbitmq_timeout_s: float = 15.0
 
     cache_url: str | None = None
+    cache_max_retries: int = DEFAULT_CACHE_MAX_RETRIES
+    cache_retry_base_delay_s: float = DEFAULT_CACHE_RETRY_BASE_DELAY_S
 
     ai_provider: AIProvider = AIProvider.GROQ
     groq_api_key: str | None = None

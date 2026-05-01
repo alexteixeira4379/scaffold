@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 
 import pytest
+import redis.exceptions
 
 from scaffold.cache.session_store import SyncJsonSessionStore
 
@@ -48,6 +49,49 @@ def test_sync_json_session_store_load_save_clear_and_healthcheck() -> None:
     assert loaded == {"cookies": [{"name": "li_at"}]}
     assert "SESSION_KEY:HEALTHCHECK" in cache.deleted
     assert "SESSION_KEY" in cache.deleted
+
+
+class _FlakyJsonCacheClient(_FakeCacheClient):
+    def __init__(self, get_json_failures: int) -> None:
+        super().__init__()
+        self._get_json_failures_left = get_json_failures
+
+    async def get_json(self, key: str):
+        if self._get_json_failures_left > 0:
+            self._get_json_failures_left -= 1
+            raise redis.exceptions.ConnectionError("Connection reset by peer")
+        return self.data.get(key)
+
+
+def test_sync_json_session_store_retries_transient_get_json_failures() -> None:
+    cache = _FlakyJsonCacheClient(get_json_failures=2)
+    store = SyncJsonSessionStore(
+        key="SESSION_KEY",
+        cache_client=cache,
+        cache_max_retries=5,
+        cache_retry_base_delay_s=0.01,
+    )
+    cache.data["SESSION_KEY"] = {"cookies": [{"name": "li_at"}]}
+    loaded = store.load()
+    assert loaded == {"cookies": [{"name": "li_at"}]}
+    assert cache._get_json_failures_left == 0
+
+
+class _AlwaysFailingGetJsonClient(_FakeCacheClient):
+    async def get_json(self, key: str):
+        raise redis.exceptions.ConnectionError("persistent failure")
+
+
+def test_sync_json_session_store_propagates_after_retry_exhaustion() -> None:
+    cache = _AlwaysFailingGetJsonClient()
+    store = SyncJsonSessionStore(
+        key="SESSION_KEY",
+        cache_client=cache,
+        cache_max_retries=3,
+        cache_retry_base_delay_s=0.01,
+    )
+    with pytest.raises(redis.exceptions.ConnectionError):
+        store.load()
 
 
 class _LoopBoundCacheClient:

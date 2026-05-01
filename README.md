@@ -50,7 +50,7 @@ Variáveis são lidas a partir do `.env` e expostas em `scaffold.config.Settings
 |------|----------------------|
 | Base de dados | `DATABASE_URL` (async, ex.: `mysql+asyncmy://user:pass@host:3306/db`), `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_ECHO` |
 | Mensageria | `MESSAGING_BACKEND` (`rabbitmq` ou `memory`), `RABBITMQ_URL` (obrigatório se `rabbitmq`) |
-| Cache | `CACHE_URL` (URL completa do backend de cache, ex.: `redis://localhost:6379/0`) |
+| Cache | `CACHE_URL` (URL completa do backend de cache, ex.: `redis://localhost:6379/0`), `CACHE_MAX_RETRIES` (tentativas em falhas transitórias de rede no `SyncJsonSessionStore`, omissão 4), `CACHE_RETRY_BASE_DELAY_S` (segundos base do backoff exponencial com jitter, omissão 0.08) |
 | IA | `AI_PROVIDER` (`groq` ou `memory`), `GROQ_API_KEY`, `GROQ_BASE_URL`, `GROQ_MODEL_*`, `GROQ_TIMEOUT_S` |
 
 Para desenvolvimento local sem RabbitMQ ou Groq, use `MESSAGING_BACKEND=memory` e `AI_PROVIDER=memory`.
