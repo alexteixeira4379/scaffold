@@ -39,15 +39,15 @@ async def test_memory_fetch_one_transfer_moves_and_finalizes_message() -> None:
     bus = InMemoryMessaging()
     await bus.connect()
     await bus.publish(
-        OutboundMessage(queue="jobs.new", body={"id": "a1"}, correlation_id="c1"),
+        OutboundMessage(queue="job.ingestion", body={"id": "a1"}, correlation_id="c1"),
     )
 
-    message = await bus.fetch_one("jobs.new")
+    message = await bus.fetch_one("job.ingestion")
 
     assert message is not None
-    await message.transfer("jobs.new.dlq", {"id": "a1", "status": "failed"}, correlation_id="c1")
+    await message.transfer("job.ingestion.dlq", {"id": "a1", "status": "failed"}, correlation_id="c1")
 
-    assert await bus.fetch_one("jobs.new") is None
-    dlq_message = await bus.fetch_one("jobs.new.dlq")
+    assert await bus.fetch_one("job.ingestion") is None
+    dlq_message = await bus.fetch_one("job.ingestion.dlq")
     assert dlq_message is not None
     assert dlq_message.body == {"id": "a1", "status": "failed"}

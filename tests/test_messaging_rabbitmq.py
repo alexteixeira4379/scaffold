@@ -169,9 +169,9 @@ async def test_rabbitmq_fetch_one_transfer_uses_channel_tx_methods() -> None:
     broker = RabbitMQMessaging("amqp://guest:guest@localhost:5672/")
     broker._channel = SimpleNamespace(declare_queue=declare_queue)
 
-    message = await broker.fetch_one("jobs.new")
+    message = await broker.fetch_one("job.ingestion")
 
     assert message is not None
-    await message.transfer("jobs.new.dlq", {"id": "a1", "status": "failed"}, correlation_id="c1")
+    await message.transfer("job.ingestion.dlq", {"id": "a1", "status": "failed"}, correlation_id="c1")
 
     assert [name for name, _ in calls] == ["tx_select", "basic_publish", "basic_ack", "tx_commit"]

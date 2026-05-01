@@ -7,24 +7,39 @@ from scaffold.messaging.topology import (
 
 jobs_topology = MessagingTopology(
     exchanges=[
-        ExchangeDefinition(name="jobs.dlx", type="direct", durable=True),
+        ExchangeDefinition(name="job.ingestion.dlx", type="direct", durable=True),
+        ExchangeDefinition(name="job.new.dlx", type="direct", durable=True),
     ],
     queues=[
         QueueDefinition(
-            name="jobs.new",
+            name="job.ingestion",
             durable=True,
             arguments={
-                "x-dead-letter-exchange": "jobs.dlx",
-                "x-dead-letter-routing-key": "jobs.new.dlq",
+                "x-dead-letter-exchange": "job.ingestion.dlx",
+                "x-dead-letter-routing-key": "job.ingestion.dlq",
             },
         ),
-        QueueDefinition(name="jobs.new.dlq", durable=True),
+        QueueDefinition(name="job.ingestion.dlq", durable=True),
+        QueueDefinition(
+            name="job.new",
+            durable=True,
+            arguments={
+                "x-dead-letter-exchange": "job.new.dlx",
+                "x-dead-letter-routing-key": "job.new.dlq",
+            },
+        ),
+        QueueDefinition(name="job.new.dlq", durable=True),
     ],
     bindings=[
         BindingDefinition(
-            source="jobs.dlx",
-            destination="jobs.new.dlq",
-            routing_key="jobs.new.dlq",
+            source="job.ingestion.dlx",
+            destination="job.ingestion.dlq",
+            routing_key="job.ingestion.dlq",
+        ),
+        BindingDefinition(
+            source="job.new.dlx",
+            destination="job.new.dlq",
+            routing_key="job.new.dlq",
         ),
     ],
 )

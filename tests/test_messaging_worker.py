@@ -10,7 +10,7 @@ from scaffold.messaging.worker import QueueWorkerRunner
 
 class _FakeMessage:
     def __init__(self) -> None:
-        self.queue_name = "jobs.new"
+        self.queue_name = "job.ingestion"
         self.correlation_id = "cid-1"
         self.read_count = 1
         self.released = False
