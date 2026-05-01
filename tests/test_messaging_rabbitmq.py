@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import types
+from types import SimpleNamespace
 
 import pytest
 
@@ -119,3 +120,58 @@ async def test_rabbitmq_close_suppresses_already_closed_errors() -> None:
 
     assert broker._channel is None
     assert broker._connection is None
+
+
+@pytest.mark.asyncio
+async def test_rabbitmq_fetch_one_transfer_uses_channel_tx_methods() -> None:
+    calls: list[tuple[str, object]] = []
+
+    class IncomingChannel:
+        is_closed = False
+
+        async def tx_select(self) -> None:
+            calls.append(("tx_select", None))
+
+        async def basic_publish(self, body: bytes, **kwargs) -> None:
+            calls.append(("basic_publish", {"body": body, **kwargs}))
+
+        async def tx_commit(self) -> None:
+            calls.append(("tx_commit", None))
+
+        async def tx_rollback(self) -> None:
+            calls.append(("tx_rollback", None))
+
+        async def basic_ack(self, *, delivery_tag, multiple=False) -> None:
+            calls.append(("basic_ack", {"delivery_tag": delivery_tag, "multiple": multiple}))
+
+    class IncomingMessage:
+        def __init__(self) -> None:
+            self.channel = IncomingChannel()
+            self.headers = {}
+            self.redelivered = False
+            self.correlation_id = "c1"
+            self.body = b'{"id":"a1"}'
+            self.delivery_tag = 11
+
+        async def ack(self) -> None:
+            await self.channel.basic_ack(delivery_tag=self.delivery_tag, multiple=False)
+
+        async def nack(self, requeue: bool = False) -> None:
+            raise AssertionError("nack should not be called")
+
+    class Queue:
+        async def get(self, fail=False, no_ack=False):
+            return IncomingMessage()
+
+    async def declare_queue(queue_name: str, durable: bool = True, passive: bool = True):
+        return Queue()
+
+    broker = RabbitMQMessaging("amqp://guest:guest@localhost:5672/")
+    broker._channel = SimpleNamespace(declare_queue=declare_queue)
+
+    message = await broker.fetch_one("jobs.new")
+
+    assert message is not None
+    await message.transfer("jobs.new.dlq", {"id": "a1", "status": "failed"}, correlation_id="c1")
+
+    assert [name for name, _ in calls] == ["tx_select", "basic_publish", "basic_ack", "tx_commit"]

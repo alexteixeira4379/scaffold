@@ -2,6 +2,7 @@ import json
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any, cast
 
+from aio_pika import DeliveryMode, Message
 from scaffold.messaging.contracts import OutboundMessage, QueueSubscription
 from scaffold.messaging.delivery import read_count_from_amqp
 from scaffold.messaging.ports import ConsumedEnvelope, FetchedMessage
@@ -86,20 +87,29 @@ class RabbitMQMessaging:
             destination_correlation_id: str | None,
             headers: dict[str, str] | None,
         ) -> None:
-            aio_pika = _import_aio_pika()
             channel = incoming.channel
             body = json.dumps(destination_body, ensure_ascii=False).encode("utf-8")
             hdrs: dict[str, str] = dict(headers or {})
-            amqp_message = aio_pika.Message(
+            amqp_message = Message(
                 body=body,
                 content_type="application/json",
-                delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+                delivery_mode=DeliveryMode.PERSISTENT,
                 correlation_id=destination_correlation_id or None,
                 headers=cast(Any, hdrs or None),
             )
-            async with channel.transaction():
-                await channel.default_exchange.publish(amqp_message, routing_key=destination_queue)
+            await channel.tx_select()
+            try:
+                await channel.basic_publish(
+                    amqp_message.body,
+                    exchange="",
+                    routing_key=destination_queue,
+                    properties=amqp_message.properties,
+                )
                 await incoming.ack()
+            except Exception:
+                await channel.tx_rollback()
+                raise
+            await channel.tx_commit()
 
         hdrs = incoming.headers
         read_count = read_count_from_amqp(bool(incoming.redelivered), hdrs)
