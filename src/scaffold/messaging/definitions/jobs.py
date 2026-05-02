@@ -9,6 +9,7 @@ jobs_topology = MessagingTopology(
     exchanges=[
         ExchangeDefinition(name="job.ingestion.dlx", type="direct", durable=True),
         ExchangeDefinition(name="job.new.dlx", type="direct", durable=True),
+        ExchangeDefinition(name="job.created.dlx", type="direct", durable=True),
     ],
     queues=[
         QueueDefinition(
@@ -29,6 +30,15 @@ jobs_topology = MessagingTopology(
             },
         ),
         QueueDefinition(name="job.new.dlq", durable=True),
+        QueueDefinition(
+            name="job.created",
+            durable=True,
+            arguments={
+                "x-dead-letter-exchange": "job.created.dlx",
+                "x-dead-letter-routing-key": "job.created.dlq",
+            },
+        ),
+        QueueDefinition(name="job.created.dlq", durable=True),
     ],
     bindings=[
         BindingDefinition(
@@ -40,6 +50,11 @@ jobs_topology = MessagingTopology(
             source="job.new.dlx",
             destination="job.new.dlq",
             routing_key="job.new.dlq",
+        ),
+        BindingDefinition(
+            source="job.created.dlx",
+            destination="job.created.dlq",
+            routing_key="job.created.dlq",
         ),
     ],
 )
