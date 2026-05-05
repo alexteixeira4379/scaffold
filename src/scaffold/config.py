@@ -4,6 +4,7 @@ from functools import lru_cache
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from scaffold.db.mysql_url import ensure_mysql_utf8mb4_charset
 
 DEFAULT_CACHE_MAX_RETRIES = 4
 DEFAULT_CACHE_RETRY_BASE_DELAY_S = 0.08
@@ -60,6 +61,12 @@ class Settings(BaseSettings):
     cache_max_retries: int = DEFAULT_CACHE_MAX_RETRIES
     cache_retry_base_delay_s: float = DEFAULT_CACHE_RETRY_BASE_DELAY_S
 
+    storage_endpoint_url: str = "https://t3.storageapi.dev"
+    storage_region: str = "auto"
+    storage_access_key_id: str | None = None
+    storage_secret_access_key: str | None = None
+    storage_public_base_url: str | None = None
+
     ai_provider: AIProvider = AIProvider.GROQ
     groq_api_key: str | None = None
     groq_base_url: str = "https://api.groq.com/openai/v1"
@@ -82,6 +89,8 @@ class Settings(BaseSettings):
                 sync = "mysql+pymysql://" + raw.removeprefix("mysql://")
             else:
                 sync = raw
+            if sync.startswith("mysql+"):
+                sync = ensure_mysql_utf8mb4_charset(sync)
             object.__setattr__(self, "database_url_sync", sync)
 
 

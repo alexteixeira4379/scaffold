@@ -9,6 +9,7 @@ Este pacote (`scaffold`) concentra o que é comum entre serviços:
 - **Dados**: modelos SQLAlchemy 2 (async), convenções de nomenclatura, sessão async e repositórios por agregado.
 - **Mensageria**: contrato estável (`QueueClient`, formatos de mensagem) com RabbitMQ por baixo e backend em memória para testes.
 - **Cache**: contrato estável (`CacheClient`) com URL configurável e Redis isolado como implementação.
+- **Storage**: contrato estável (`StorageClient`) com bucket definido na criação do client e backend S3-compatible isolado da regra de negócio.
 - **IA**: contrato estável (`AIClient`, níveis de inferência, saída texto ou JSON) com Groq (API compatível com OpenAI) e backend em memória para testes.
 
 A ideia é que cada serviço dependa de **portas e contratos** (e de `Settings`), e que trocas de broker, de LLM ou de modelo fiquem centralizadas em configuração e em fábricas pequenas (`create_messaging_client`, `create_llm_backend`).
@@ -51,6 +52,7 @@ Variáveis são lidas a partir do `.env` e expostas em `scaffold.config.Settings
 | Base de dados | `DATABASE_URL` (async, ex.: `mysql+asyncmy://user:pass@host:3306/db`), `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_ECHO` |
 | Mensageria | `MESSAGING_BACKEND` (`rabbitmq` ou `memory`), `RABBITMQ_URL` (obrigatório se `rabbitmq`) |
 | Cache | `CACHE_URL` (URL completa do backend de cache, ex.: `redis://localhost:6379/0`), `CACHE_MAX_RETRIES` (tentativas em falhas transitórias de rede no `SyncJsonSessionStore`, omissão 4), `CACHE_RETRY_BASE_DELAY_S` (segundos base do backoff exponencial com jitter, omissão 0.08) |
+| Storage | `STORAGE_ENDPOINT_URL` (omissão `https://t3.storageapi.dev`), `STORAGE_REGION` (omissão `auto`), `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY`, `STORAGE_PUBLIC_BASE_URL` (opcional; se ausente, a URL pública usa o endpoint configurado) |
 | IA | `AI_PROVIDER` (`groq` ou `memory`), `GROQ_API_KEY`, `GROQ_BASE_URL`, `GROQ_MODEL_*`, `GROQ_TIMEOUT_S` |
 
 Para desenvolvimento local sem RabbitMQ ou Groq, use `MESSAGING_BACKEND=memory` e `AI_PROVIDER=memory`.
@@ -120,6 +122,28 @@ texto = resultado.as_text()
 ```
 
 Para saída estruturada, use `ResponseMode.JSON` e consuma com `resultado.as_json()`. Os métodos `basic`, `intermediate`, `complex` e `thinking` diferenciam **custo ou capacidade esperada**; o modelo concreto por nível vem só do `Settings` (`GROQ_MODEL_*`), o que permite evoluir modelos sem alterar o código do consumidor.
+
+### Storage
+
+```python
+from scaffold.config import get_settings
+from scaffold.storage import StorageClient
+
+storage = StorageClient.from_settings(get_settings(), "worker-artifacts")
+await storage.connect()
+try:
+    uploaded = await storage.upload(
+        "resume/123/parsed.json",
+        '{"status":"ok"}',
+        content_type="application/json",
+    )
+    body = await storage.get("resume/123/parsed.json")
+    await storage.delete("resume/123/parsed.json")
+finally:
+    await storage.close()
+```
+
+O `bucket` é definido ao instanciar o client e o scaffold devolve `bucket`, `key` e `url` pública do objeto para que o worker persista `storage_url` sem conhecer detalhes do provedor.
 
 ## Modelo de dados (visão geral)
 
@@ -191,6 +215,7 @@ Os testes cobrem sobretudo os backends em memória de mensageria e IA, de forma 
 | `src/scaffold/repositories/` | Acesso a dados por área |
 | `src/scaffold/db/` | Motor, sessão e tipos |
 | `src/scaffold/messaging/` | Contratos, RabbitMQ, memória, `QueueClient` |
+| `src/scaffold/storage/` | Contratos, backend S3-compatible, `StorageClient` |
 | `src/scaffold/ai/` | Contratos, Groq, memória, `AIClient` |
 | `src/scaffold/config.py` | `Settings`, enums de backend |
 | `migrations/core/` | Ambiente e revisões Alembic do núcleo |

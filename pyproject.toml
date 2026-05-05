@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "scaffold"
-version = "1.1.8"
+version = "1.1.9"
 requires-python = ">=3.11"
 dependencies = [
     "sqlalchemy[asyncio]>=2.0",
@@ -16,6 +16,7 @@ dependencies = [
     "python-dotenv>=1.0",
     "aio-pika>=9.4",
     "redis>=5.0",
+    "boto3>=1.34",
 ]
 
 [project.optional-dependencies]
@@ -41,6 +42,9 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/seederCandidate.py" = ["E402"]
 
 [tool.mypy]
 python_version = "3.11"

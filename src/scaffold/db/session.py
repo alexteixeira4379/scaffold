@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from scaffold.config import get_settings
+from scaffold.db.mysql_url import ensure_mysql_utf8mb4_charset
 
 _engine: AsyncEngine | None = None
 _session_factory: async_sessionmaker[AsyncSession] | None = None
@@ -16,12 +17,14 @@ _session_factory: async_sessionmaker[AsyncSession] | None = None
 def _async_database_url(url: str) -> str:
     raw = url.strip()
     if raw.startswith("mysql+asyncmy://") or raw.startswith("mysql+aiomysql://"):
+        out = raw
+    elif raw.startswith("mysql+pymysql://"):
+        out = "mysql+asyncmy://" + raw.removeprefix("mysql+pymysql://")
+    elif raw.startswith("mysql://"):
+        out = "mysql+asyncmy://" + raw.removeprefix("mysql://")
+    else:
         return raw
-    if raw.startswith("mysql+pymysql://"):
-        return "mysql+asyncmy://" + raw.removeprefix("mysql+pymysql://")
-    if raw.startswith("mysql://"):
-        return "mysql+asyncmy://" + raw.removeprefix("mysql://")
-    return raw
+    return ensure_mysql_utf8mb4_charset(out)
 
 
 def get_engine() -> AsyncEngine:
