@@ -32,6 +32,7 @@ from scaffold.models.job.job_match_evaluations import JobMatchEvaluation
 from scaffold.models.job.job_match_events import JobMatchEvent
 from scaffold.models.job.job_match_scores import JobMatchScore
 from scaffold.models.job.job_matches import JobMatch
+from scaffold.models.job.job_professional_entities import JobProfessionalEntity
 from scaffold.models.job.job_raw_payloads import JobRawPayload
 from scaffold.models.job.job_routing_keywords import JobRoutingKeyword
 from scaffold.models.job.jobs import Job
@@ -96,6 +97,7 @@ __all__ = [
     "JobMatchEvaluation",
     "JobMatchEvent",
     "JobMatchScore",
+    "JobProfessionalEntity",
     "JobRawPayload",
     "JobRoutingKeyword",
     "ProfessionalCollection",

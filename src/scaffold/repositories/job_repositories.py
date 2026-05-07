@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from scaffold.models.job.job_applications import JobApplication
 from scaffold.models.job.job_events import JobEvent
+from scaffold.models.job.job_professional_entities import JobProfessionalEntity
 from scaffold.models.job.job_raw_payloads import JobRawPayload
 from scaffold.models.job.job_routing_keywords import JobRoutingKeyword
 from scaffold.models.job.jobs import Job
@@ -129,6 +130,27 @@ class JobRawPayloadRepository(AsyncRepository[JobRawPayload]):
         )
 
 
+class JobProfessionalEntityRepository(AsyncRepository[JobProfessionalEntity]):
+    def __init__(self) -> None:
+        super().__init__(JobProfessionalEntity)
+
+    async def list_by_job_id(
+        self,
+        session: AsyncSession,
+        job_id: int,
+        *,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[JobProfessionalEntity]:
+        return await self.list_where(
+            session,
+            JobProfessionalEntity.job_id == job_id,
+            order_by=(JobProfessionalEntity.id,),
+            limit=limit,
+            offset=offset,
+        )
+
+
 class JobRoutingKeywordRepository(AsyncRepository[JobRoutingKeyword]):
     def __init__(self) -> None:
         super().__init__(JobRoutingKeyword)
@@ -154,4 +176,5 @@ job_repository = JobRepository()
 job_event_repository = JobEventRepository()
 job_application_repository = JobApplicationRepository()
 job_raw_payload_repository = JobRawPayloadRepository()
+job_professional_entity_repository = JobProfessionalEntityRepository()
 job_routing_keyword_repository = JobRoutingKeywordRepository()

@@ -4,6 +4,12 @@ from scaffold.professional.esco_importer import (
     map_occ_skill_relation_type,
     map_skill_skill_relation_type,
 )
+from scaffold.professional.cbo_importer import (
+    clean_label,
+    make_cbo_external_id,
+    profile_activity_relation_type,
+    profile_area_relation_type,
+)
 from scaffold.professional.normalization import deduplicate_normalized, normalize_text, split_alias_field
 
 
@@ -106,3 +112,26 @@ def test_skill_skill_relation_essential_maps_correctly():
 
 def test_skill_skill_relation_optional_maps_correctly():
     assert map_skill_skill_relation_type("optional") == "optional_related_skill"
+
+
+def test_clean_label_collapses_whitespace_preserving_case():
+    assert clean_label("  ENGENHEIRO   DE   SOFTWARE  ") == "ENGENHEIRO DE SOFTWARE"
+
+
+def test_make_cbo_external_id_for_coded_levels_is_readable():
+    assert make_cbo_external_id("ocupacao", "251510") == "ocupacao:251510"
+
+
+def test_make_cbo_external_id_for_activity_is_stable_hash():
+    first = make_cbo_external_id("atividade", "Trabalhar em equipe")
+    second = make_cbo_external_id("atividade", "  Trabalhar   em equipe ")
+    assert first == second
+    assert first.startswith("atividade:")
+
+
+def test_cbo_profile_area_relation_type_is_canonical():
+    assert profile_area_relation_type() == "cbo_area"
+
+
+def test_cbo_profile_activity_relation_type_is_canonical():
+    assert profile_activity_relation_type() == "cbo_activity"

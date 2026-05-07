@@ -1,6 +1,7 @@
 from sqlalchemy.dialects import mysql
 from sqlalchemy.schema import CreateTable
 
+from scaffold.models.job.job_professional_entities import JobProfessionalEntity
 from scaffold.models.professional.professional_collection_memberships import ProfessionalCollectionMembership
 from scaffold.models.professional.professional_collections import ProfessionalCollection
 from scaffold.models.professional.professional_entities import ProfessionalEntity
@@ -137,6 +138,34 @@ def test_all_tables_have_bigint_pk():
         ProfessionalEntityHierarchyRelation,
         ProfessionalCollection,
         ProfessionalCollectionMembership,
+        JobProfessionalEntity,
     ]:
         pk_col = model.__table__.c["id"]
         assert str(pk_col.type) == "BIGINT"
+
+
+def test_job_professional_entities_has_expected_constraints_and_indexes():
+    uq_constraints = [
+        c for c in JobProfessionalEntity.__table__.constraints
+        if c.__class__.__name__ == "UniqueConstraint"
+    ]
+    assert len(uq_constraints) == 1
+    col_names = {c.name for c in uq_constraints[0].columns}
+    assert col_names == {"job_id", "entity_id", "source_field"}
+
+    fk_targets = {
+        fk.column.table.name for fk in JobProfessionalEntity.__table__.foreign_keys
+    }
+    assert fk_targets == {"jobs", "professional_entities"}
+
+    indexes = {index.name for index in JobProfessionalEntity.__table__.indexes}
+    assert "ix_job_professional_entities_job_id" in indexes
+    assert "ix_job_professional_entities_entity_id" in indexes
+    assert "ix_job_professional_entities_job_id_source_field" in indexes
+
+
+def test_job_professional_entities_ddl_contains_numeric_columns():
+    ddl = _ddl(JobProfessionalEntity)
+    assert "matched_text" in ddl
+    assert "confidence NUMERIC(5, 4)" in ddl
+    assert "weight NUMERIC(6, 2)" in ddl
