@@ -6,11 +6,13 @@ from scaffold.professional.esco_importer import (
 )
 from scaffold.professional.cbo_importer import (
     clean_label,
+    entity_type_key,
     make_cbo_external_id,
     profile_activity_relation_type,
     profile_area_relation_type,
 )
 from scaffold.professional.normalization import deduplicate_normalized, normalize_text, split_alias_field
+from scaffold.constants.schema_enums import ProfessionalEntityType
 
 
 def test_normalize_text_lowercases_and_trims():
@@ -135,3 +137,8 @@ def test_cbo_profile_area_relation_type_is_canonical():
 
 def test_cbo_profile_activity_relation_type_is_canonical():
     assert profile_activity_relation_type() == "cbo_activity"
+
+
+def test_entity_type_key_normalizes_enum_and_string_to_same_value():
+    assert entity_type_key(ProfessionalEntityType.OCCUPATION) == "occupation"
+    assert entity_type_key("occupation") == "occupation"

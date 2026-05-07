@@ -51,6 +51,12 @@ def profile_activity_relation_type() -> str:
     return "cbo_activity"
 
 
+def entity_type_key(entity_type: ProfessionalEntityType | str) -> str:
+    if isinstance(entity_type, ProfessionalEntityType):
+        return entity_type.value
+    return str(entity_type)
+
+
 class CboImporter:
     BATCH_SIZE = 500
 
@@ -58,7 +64,7 @@ class CboImporter:
         self._session = session
         self._dataset_dir = dataset_dir
         self._source = source
-        self._identity_to_id: dict[tuple[ProfessionalEntityType, str, str], int] = {}
+        self._identity_to_id: dict[tuple[str, str, str], int] = {}
         self._external_to_id: dict[str, int] = {}
         self._code_to_id: dict[str, int] = {}
         self._stats: dict[str, int] = {
@@ -91,7 +97,7 @@ class CboImporter:
         for entity_id, entity_type, normalized_name, language in result:
             if language is None:
                 continue
-            self._identity_to_id[(entity_type, normalized_name, language)] = entity_id
+            self._identity_to_id[(entity_type_key(entity_type), normalized_name, language)] = entity_id
 
         result = await self._session.execute(
             select(
@@ -131,8 +137,18 @@ class CboImporter:
             return self._external_to_id[external_source_id]
 
         normalized_name = normalize_text(canonical_name)
-        identity = (entity_type, normalized_name, language)
+        identity = (entity_type_key(entity_type), normalized_name, language)
         entity_id = self._identity_to_id.get(identity)
+
+        if entity_id is None:
+            existing = await self._session.execute(
+                select(ProfessionalEntity.id).where(
+                    ProfessionalEntity.entity_type == entity_type,
+                    ProfessionalEntity.normalized_name == normalized_name,
+                    ProfessionalEntity.language == language,
+                ).limit(1)
+            )
+            entity_id = existing.scalar_one_or_none()
 
         if entity_id is None:
             entity = ProfessionalEntity(
@@ -147,8 +163,9 @@ class CboImporter:
             self._session.add(entity)
             await self._session.flush()
             entity_id = entity.id
-            self._identity_to_id[identity] = entity_id
             self._stats["entities"] += 1
+
+        self._identity_to_id[identity] = entity_id
 
         rows = [{
             "entity_id": entity_id,
