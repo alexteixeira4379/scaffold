@@ -29,15 +29,18 @@ from scaffold.professional.esco_importer import EscoImporter  # noqa: E402
 
 
 async def run(dataset_dir: str, source: str, reset: bool) -> None:
-    factory = get_session_factory()
-    async with factory() as session:
-        importer = EscoImporter(session, Path(dataset_dir), source=source)
-        stats = await importer.run(reset=reset)
+    try:
+        factory = get_session_factory()
+        async with factory() as session:
+            importer = EscoImporter(session, Path(dataset_dir), source=source)
+            stats = await importer.run(reset=reset)
 
-    print("\n=== ESCO Import Summary ===")
-    for key, count in stats.items():
-        print(f"  {key:30s}: {count:>8,}")
-    print("===========================\n")
+        print("\n=== ESCO Import Summary ===")
+        for key, count in stats.items():
+            print(f"  {key:30s}: {count:>8,}")
+        print("===========================\n")
+    finally:
+        await close_engine()
 
 
 def main() -> None:
@@ -61,10 +64,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    try:
-        asyncio.run(run(args.dataset_dir, args.source, reset=not args.no_reset))
-    finally:
-        asyncio.run(close_engine())
+    asyncio.run(run(args.dataset_dir, args.source, reset=not args.no_reset))
 
 
 if __name__ == "__main__":
