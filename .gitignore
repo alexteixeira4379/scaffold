@@ -43,6 +43,7 @@ logs/
 
 .DS_Store
 Thumbs.db
+*:Zone.Identifier
 
 *.swp
 *.swo
