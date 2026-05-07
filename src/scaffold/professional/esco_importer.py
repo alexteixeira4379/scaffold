@@ -140,6 +140,8 @@ class EscoImporter:
     async def _load_entities(self) -> None:
         batch: list[ProfessionalEntity] = []
         uri_batch: list[str] = []
+        # Guard against duplicate (entity_type, normalized_name, language) within the CSV set
+        seen_identities: set[tuple[str, str, str]] = set()
 
         for csv_file, entity_type in ENTITY_CSVS:
             for row in self._read_csv(csv_file):
@@ -148,10 +150,17 @@ class EscoImporter:
                 if not uri or not label or uri in self._uri_to_id:
                     continue
 
+                normalized = normalize_text(label)
+                identity = (entity_type, normalized, "pt")
+                if identity in seen_identities:
+                    self._stats["skipped"] += 1
+                    continue
+                seen_identities.add(identity)
+
                 entity = ProfessionalEntity(
                     entity_type=entity_type,
                     canonical_name=label,
-                    normalized_name=normalize_text(label),
+                    normalized_name=normalized,
                     language="pt",
                     description=_pick_description(row),
                     entity_metadata=_build_metadata(row, csv_file),
