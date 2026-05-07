@@ -64,6 +64,16 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    dataset_path = Path(args.dataset_dir)
+    if not dataset_path.is_dir():
+        print(f"ERROR: dataset directory not found: {dataset_path}", file=sys.stderr)
+        print(
+            "Pass --dataset-dir or mount the ESCO CSV directory into the container.\n"
+            "Expected path (default): migrations/core/seeders/ESCO_dataset-v1.2.1-classification-pt-csv",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     asyncio.run(run(args.dataset_dir, args.source, reset=not args.no_reset))
 
 
