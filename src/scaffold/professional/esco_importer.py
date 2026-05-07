@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from sqlalchemy import delete
+from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from scaffold.models.professional.professional_collection_memberships import ProfessionalCollectionMembership
@@ -130,6 +131,14 @@ class EscoImporter:
         with open(path, newline="", encoding="utf-8") as f:
             yield from csv.DictReader(f)
 
+    async def _insert_ignore(self, model: type, rows: list[dict]) -> int:
+        """Bulk INSERT IGNORE — silently skips rows that violate unique constraints."""
+        if not rows:
+            return 0
+        stmt = mysql_insert(model.__table__).prefix_with("IGNORE").values(rows)
+        result = await self._session.execute(stmt)
+        return result.rowcount
+
     async def _flush_entities(self, batch: list[ProfessionalEntity], uri_batch: list[str]) -> None:
         self._session.add_all(batch)
         await self._session.flush()
@@ -180,8 +189,7 @@ class EscoImporter:
         await self._session.commit()
 
     async def _load_aliases(self) -> None:
-        batch: list[ProfessionalEntityAlias] = []
-        # track (entity_id, normalized_alias) to avoid duplicates within same entity
+        batch: list[dict] = []
         seen: set[tuple[int, str]] = set()
 
         for csv_file, _ in ENTITY_CSVS:
@@ -207,29 +215,25 @@ class EscoImporter:
                         continue
                     seen.add(key)
 
-                    batch.append(ProfessionalEntityAlias(
-                        entity_id=entity_id,
-                        alias=alias_text,
-                        normalized_alias=normalized,
-                        language="pt",
-                        source=self._source,
-                    ))
+                    batch.append({
+                        "entity_id": entity_id,
+                        "alias": alias_text,
+                        "normalized_alias": normalized,
+                        "language": "pt",
+                        "source": self._source,
+                    })
 
                     if len(batch) >= self.BATCH_SIZE:
-                        self._session.add_all(batch)
-                        await self._session.flush()
-                        self._stats["aliases"] += len(batch)
+                        self._stats["aliases"] += await self._insert_ignore(ProfessionalEntityAlias, batch)
                         batch = []
 
         if batch:
-            self._session.add_all(batch)
-            await self._session.flush()
-            self._stats["aliases"] += len(batch)
+            self._stats["aliases"] += await self._insert_ignore(ProfessionalEntityAlias, batch)
 
         await self._session.commit()
 
     async def _load_sources(self) -> None:
-        batch: list[ProfessionalEntitySource] = []
+        batch: list[dict] = []
 
         for csv_file, _ in ENTITY_CSVS:
             for row in self._read_csv(csv_file):
@@ -238,24 +242,20 @@ class EscoImporter:
                 if entity_id is None:
                     continue
 
-                batch.append(ProfessionalEntitySource(
-                    entity_id=entity_id,
-                    source=self._source,
-                    external_source_id=uri,
-                    external_source_uri=uri,
-                    source_label=row.get("preferredLabel", "").strip() or None,
-                ))
+                batch.append({
+                    "entity_id": entity_id,
+                    "source": self._source,
+                    "external_source_id": uri,
+                    "external_source_uri": uri,
+                    "source_label": row.get("preferredLabel", "").strip() or None,
+                })
 
                 if len(batch) >= self.BATCH_SIZE:
-                    self._session.add_all(batch)
-                    await self._session.flush()
-                    self._stats["sources"] += len(batch)
+                    self._stats["sources"] += await self._insert_ignore(ProfessionalEntitySource, batch)
                     batch = []
 
         if batch:
-            self._session.add_all(batch)
-            await self._session.flush()
-            self._stats["sources"] += len(batch)
+            self._stats["sources"] += await self._insert_ignore(ProfessionalEntitySource, batch)
 
         await self._session.commit()
 
@@ -269,7 +269,7 @@ class EscoImporter:
         await self._session.commit()
 
     async def _load_relations(self) -> None:
-        batch: list[ProfessionalEntityRelation] = []
+        batch: list[dict] = []
 
         # occupation → skill relations
         for row in self._read_csv("occupationSkillRelations_pt.csv"):
@@ -283,21 +283,19 @@ class EscoImporter:
                 continue
 
             relation_type = map_occ_skill_relation_type(row.get("relationType", ""))
-            batch.append(ProfessionalEntityRelation(
-                source_entity_id=occ_id,
-                target_entity_id=skill_id,
-                relation_type=relation_type,
-                source=self._source,
-                relation_metadata={
+            batch.append({
+                "source_entity_id": occ_id,
+                "target_entity_id": skill_id,
+                "relation_type": relation_type,
+                "source": self._source,
+                "metadata": {
                     "raw_relation_type": row.get("relationType", ""),
                     "raw_skill_type": row.get("skillType", ""),
                 },
-            ))
+            })
 
             if len(batch) >= self.BATCH_SIZE:
-                self._session.add_all(batch)
-                await self._session.flush()
-                self._stats["relations"] += len(batch)
+                self._stats["relations"] += await self._insert_ignore(ProfessionalEntityRelation, batch)
                 batch = []
 
         # skill → skill relations
@@ -312,33 +310,29 @@ class EscoImporter:
                 continue
 
             relation_type = map_skill_skill_relation_type(row.get("relationType", ""))
-            batch.append(ProfessionalEntityRelation(
-                source_entity_id=src_id,
-                target_entity_id=tgt_id,
-                relation_type=relation_type,
-                source=self._source,
-                relation_metadata={
+            batch.append({
+                "source_entity_id": src_id,
+                "target_entity_id": tgt_id,
+                "relation_type": relation_type,
+                "source": self._source,
+                "metadata": {
                     "raw_relation_type": row.get("relationType", ""),
                     "raw_original_skill_type": row.get("originalSkillType", ""),
                     "raw_related_skill_type": row.get("relatedSkillType", ""),
                 },
-            ))
+            })
 
             if len(batch) >= self.BATCH_SIZE:
-                self._session.add_all(batch)
-                await self._session.flush()
-                self._stats["relations"] += len(batch)
+                self._stats["relations"] += await self._insert_ignore(ProfessionalEntityRelation, batch)
                 batch = []
 
         if batch:
-            self._session.add_all(batch)
-            await self._session.flush()
-            self._stats["relations"] += len(batch)
+            self._stats["relations"] += await self._insert_ignore(ProfessionalEntityRelation, batch)
 
         await self._session.commit()
 
     async def _load_hierarchy(self) -> None:
-        batch: list[ProfessionalEntityHierarchyRelation] = []
+        batch: list[dict] = []
 
         for csv_file in ("broaderRelationsOccPillar_pt.csv", "broaderRelationsSkillPillar_pt.csv"):
             for row in self._read_csv(csv_file):
@@ -351,24 +345,20 @@ class EscoImporter:
                     self._stats["skipped"] += 1
                     continue
 
-                batch.append(ProfessionalEntityHierarchyRelation(
-                    child_entity_id=child_id,
-                    parent_entity_id=parent_id,
-                    relation_type="broader",
-                    depth=1,
-                    source=self._source,
-                ))
+                batch.append({
+                    "child_entity_id": child_id,
+                    "parent_entity_id": parent_id,
+                    "relation_type": "broader",
+                    "depth": 1,
+                    "source": self._source,
+                })
 
                 if len(batch) >= self.BATCH_SIZE:
-                    self._session.add_all(batch)
-                    await self._session.flush()
-                    self._stats["hierarchy_relations"] += len(batch)
+                    self._stats["hierarchy_relations"] += await self._insert_ignore(ProfessionalEntityHierarchyRelation, batch)
                     batch = []
 
         if batch:
-            self._session.add_all(batch)
-            await self._session.flush()
-            self._stats["hierarchy_relations"] += len(batch)
+            self._stats["hierarchy_relations"] += await self._insert_ignore(ProfessionalEntityHierarchyRelation, batch)
 
         await self._session.commit()
 
@@ -381,9 +371,7 @@ class EscoImporter:
         )
         slug_to_collection_id: dict[str, int] = {row[0]: row[1] for row in result}
 
-        batch: list[ProfessionalCollectionMembership] = []
-        # avoid duplicate (collection_id, entity_id) within same run
-        seen: set[tuple[int, int]] = set()
+        batch: list[dict] = []
 
         for slug, (csv_file, _) in COLLECTION_MAP.items():
             collection_id = slug_to_collection_id.get(slug)
@@ -397,25 +385,13 @@ class EscoImporter:
                     self._stats["skipped"] += 1
                     continue
 
-                key = (collection_id, entity_id)
-                if key in seen:
-                    continue
-                seen.add(key)
-
-                batch.append(ProfessionalCollectionMembership(
-                    collection_id=collection_id,
-                    entity_id=entity_id,
-                ))
+                batch.append({"collection_id": collection_id, "entity_id": entity_id})
 
                 if len(batch) >= self.BATCH_SIZE:
-                    self._session.add_all(batch)
-                    await self._session.flush()
-                    self._stats["memberships"] += len(batch)
+                    self._stats["memberships"] += await self._insert_ignore(ProfessionalCollectionMembership, batch)
                     batch = []
 
         if batch:
-            self._session.add_all(batch)
-            await self._session.flush()
-            self._stats["memberships"] += len(batch)
+            self._stats["memberships"] += await self._insert_ignore(ProfessionalCollectionMembership, batch)
 
         await self._session.commit()
