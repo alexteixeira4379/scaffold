@@ -43,6 +43,13 @@ from scaffold.models.resume.resume_versions import ResumeVersion
 from scaffold.models.search.job_collection_checkpoints import JobCollectionCheckpoint
 from scaffold.models.search.job_collection_definitions import JobCollectionDefinition
 from scaffold.models.search.job_collection_runs import JobCollectionRun
+from scaffold.models.professional.professional_collection_memberships import ProfessionalCollectionMembership
+from scaffold.models.professional.professional_collections import ProfessionalCollection
+from scaffold.models.professional.professional_entities import ProfessionalEntity
+from scaffold.models.professional.professional_entity_aliases import ProfessionalEntityAlias
+from scaffold.models.professional.professional_entity_hierarchy_relations import ProfessionalEntityHierarchyRelation
+from scaffold.models.professional.professional_entity_relations import ProfessionalEntityRelation
+from scaffold.models.professional.professional_entity_sources import ProfessionalEntitySource
 from scaffold.models.tracking.tracking_attributions import TrackingAttribution
 from scaffold.models.tracking.tracking_clicks import TrackingClick
 from scaffold.models.tracking.tracking_events import TrackingEvent
@@ -91,6 +98,13 @@ __all__ = [
     "JobMatchScore",
     "JobRawPayload",
     "JobRoutingKeyword",
+    "ProfessionalCollection",
+    "ProfessionalCollectionMembership",
+    "ProfessionalEntity",
+    "ProfessionalEntityAlias",
+    "ProfessionalEntityHierarchyRelation",
+    "ProfessionalEntityRelation",
+    "ProfessionalEntitySource",
     "ResumeBuildAnswer",
     "ResumeBuildSession",
     "ResumeBuildStep",

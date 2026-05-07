@@ -275,6 +275,18 @@ class ResumeStepInputType(StrEnum):
     RICH_TEXT = "rich_text"
 
 
+class ProfessionalEntityType(StrEnum):
+    SKILL = "skill"
+    TECHNOLOGY = "technology"
+    TOOL = "tool"
+    METHODOLOGY = "methodology"
+    CERTIFICATION = "certification"
+    LANGUAGE = "language"
+    JOB_TITLE = "job_title"
+    OCCUPATION = "occupation"
+    DOMAIN = "domain"
+
+
 def members(e: type[StrEnum]) -> tuple[str, ...]:
     return tuple(m.value for m in e)
 
