@@ -20,11 +20,11 @@ async def test_memory_publish_consume_ack() -> None:
         done.set()
 
     consumer = asyncio.create_task(
-        bus.consume(QueueSubscription(queue_name="jobs.ingest"), handler),
+        bus.consume(QueueSubscription(queue_name="test.queue"), handler),
     )
     await asyncio.sleep(0)
     await bus.publish(
-        OutboundMessage(queue="jobs.ingest", body={"id": "a1"}, correlation_id="c1"),
+        OutboundMessage(queue="test.queue", body={"id": "a1"}, correlation_id="c1"),
     )
     await asyncio.wait_for(done.wait(), timeout=2.0)
     assert received == [{"id": "a1"}]
@@ -39,15 +39,15 @@ async def test_memory_fetch_one_transfer_moves_and_finalizes_message() -> None:
     bus = InMemoryMessaging()
     await bus.connect()
     await bus.publish(
-        OutboundMessage(queue="job.ingestion", body={"id": "a1"}, correlation_id="c1"),
+        OutboundMessage(queue="job.captured", body={"id": "a1"}, correlation_id="c1"),
     )
 
-    message = await bus.fetch_one("job.ingestion")
+    message = await bus.fetch_one("job.captured")
 
     assert message is not None
-    await message.transfer("job.ingestion.dlq", {"id": "a1", "status": "failed"}, correlation_id="c1")
+    await message.transfer("job.captured.dlq", {"id": "a1", "status": "failed"}, correlation_id="c1")
 
-    assert await bus.fetch_one("job.ingestion") is None
-    dlq_message = await bus.fetch_one("job.ingestion.dlq")
+    assert await bus.fetch_one("job.captured") is None
+    dlq_message = await bus.fetch_one("job.captured.dlq")
     assert dlq_message is not None
     assert dlq_message.body == {"id": "a1", "status": "failed"}
