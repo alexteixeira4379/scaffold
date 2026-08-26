@@ -3,8 +3,10 @@ from __future__ import annotations
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from scaffold.models.candidate.candidate_application_data import CandidateApplicationData
 from scaffold.models.candidate.candidate_events import CandidateEvent
 from scaffold.models.candidate.candidate_preferences import CandidatePreference
+from scaffold.models.candidate.candidate_target_profile_entities import CandidateTargetProfileEntity
 from scaffold.models.candidate.candidate_target_profile_keywords import CandidateTargetProfileKeyword
 from scaffold.models.candidate.candidate_target_profiles import CandidateTargetProfile
 from scaffold.models.candidate.candidates import Candidate
@@ -122,3 +124,64 @@ candidate_event_repository = CandidateEventRepository()
 candidate_preference_repository = CandidatePreferenceRepository()
 candidate_target_profile_repository = CandidateTargetProfileRepository()
 candidate_target_profile_keyword_repository = CandidateTargetProfileKeywordRepository()
+
+
+class CandidateApplicationDataRepository(AsyncRepository[CandidateApplicationData]):
+    def __init__(self) -> None:
+        super().__init__(CandidateApplicationData)
+
+    async def get_by_candidate_id(
+        self, session: AsyncSession, candidate_id: int
+    ) -> CandidateApplicationData | None:
+        return await self.first_where(
+            session, CandidateApplicationData.candidate_id == candidate_id
+        )
+
+
+candidate_application_data_repository = CandidateApplicationDataRepository()
+
+
+class CandidateTargetProfileEntityRepository(AsyncRepository[CandidateTargetProfileEntity]):
+    def __init__(self) -> None:
+        super().__init__(CandidateTargetProfileEntity)
+
+    async def list_by_target_profile_id(
+        self, session: AsyncSession, target_profile_id: int
+    ) -> list[CandidateTargetProfileEntity]:
+        return await self.list_where(
+            session,
+            CandidateTargetProfileEntity.candidate_target_profile_id == target_profile_id,
+            order_by=(CandidateTargetProfileEntity.id,),
+        )
+
+    async def list_by_professional_entity_id(
+        self, session: AsyncSession, entity_id: int
+    ) -> list[CandidateTargetProfileEntity]:
+        return await self.list_where(
+            session,
+            CandidateTargetProfileEntity.professional_entity_id == entity_id,
+            order_by=(CandidateTargetProfileEntity.id,),
+        )
+
+    async def get_entity_ids_by_target_profile_id(
+        self, session: AsyncSession, target_profile_id: int
+    ) -> list[int]:
+        results = await self.list_where(
+            session,
+            CandidateTargetProfileEntity.candidate_target_profile_id == target_profile_id,
+        )
+        return [r.professional_entity_id for r in results]
+
+    async def delete_by_target_profile_id(
+        self, session: AsyncSession, target_profile_id: int
+    ) -> int:
+        from sqlalchemy import delete
+
+        stmt = delete(CandidateTargetProfileEntity).where(
+            CandidateTargetProfileEntity.candidate_target_profile_id == target_profile_id
+        )
+        result = await session.execute(stmt)
+        return result.rowcount
+
+
+candidate_target_profile_entity_repository = CandidateTargetProfileEntityRepository()

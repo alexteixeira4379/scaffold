@@ -17,8 +17,10 @@ from scaffold.models.billing.billing_events import BillingEvent
 from scaffold.models.billing.billing_payments import BillingPayment
 from scaffold.models.billing.billing_plans import BillingPlan
 from scaffold.models.billing.billing_subscriptions import BillingSubscription
+from scaffold.models.candidate.candidate_application_data import CandidateApplicationData
 from scaffold.models.candidate.candidate_events import CandidateEvent
 from scaffold.models.candidate.candidate_preferences import CandidatePreference
+from scaffold.models.candidate.candidate_target_profile_entities import CandidateTargetProfileEntity
 from scaffold.models.candidate.candidate_target_profile_keywords import CandidateTargetProfileKeyword
 from scaffold.models.candidate.candidate_target_profiles import CandidateTargetProfile
 from scaffold.models.candidate.candidates import Candidate
@@ -78,9 +80,11 @@ __all__ = [
     "BillingPlan",
     "BillingSubscription",
     "Candidate",
+    "CandidateApplicationData",
     "CandidateEvent",
     "CandidatePreference",
     "CandidateTargetProfile",
+    "CandidateTargetProfileEntity",
     "CandidateTargetProfileKeyword",
     "Company",
     "CompanyDomain",
@@ -117,3 +121,4 @@ __all__ = [
     "TrackingSession",
     "TrackingVisit",
 ]
+from scaffold.models.application.application_entitlements import ApplicationEntitlement  # noqa: F401

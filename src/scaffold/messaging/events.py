@@ -7,6 +7,7 @@ class JobEventName(StrEnum):
     JOB_INGESTION_COMMON_REQUEST = "job.ingestion.common.request"
     JOB_INGESTED = "job.ingested"
     JOB_CREATED = "job.created"
+    COMPANY_ENRICHED = "company.enriched"
     JOB_ENRICHED = "job.enriched"
     JOB_CLASSIFIED = "job.classified"
     JOB_ELIGIBLE = "job.eligible"
