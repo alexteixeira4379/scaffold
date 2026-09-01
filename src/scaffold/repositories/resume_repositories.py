@@ -60,12 +60,17 @@ class ResumeBuildAnswerRepository(AsyncRepository[ResumeBuildAnswer]):
         super().__init__(ResumeBuildAnswer)
 
     async def get_by_session_and_step(
-        self, session: AsyncSession, session_id: int, step_id: int
+        self,
+        session: AsyncSession,
+        session_id: int,
+        step_id: int,
+        repeat_index: int | None = None,
     ) -> ResumeBuildAnswer | None:
         return await self.first_where(
             session,
             ResumeBuildAnswer.session_id == session_id,
             ResumeBuildAnswer.step_id == step_id,
+            ResumeBuildAnswer.repeat_index == repeat_index,
         )
 
     async def list_by_session_id(

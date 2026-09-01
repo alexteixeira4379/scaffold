@@ -17,6 +17,7 @@ class BillingPlan(CoreBase):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     code: Mapped[str] = mapped_column(String(128), nullable=False)
+    stripe_price_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     price: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
