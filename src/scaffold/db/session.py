@@ -1,5 +1,7 @@
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, AsyncIterator
+from contextlib import asynccontextmanager
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -64,6 +66,24 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
     factory = get_session_factory()
     async with factory() as session:
         yield session
+
+
+@asynccontextmanager
+async def get_read_only_session() -> AsyncIterator[AsyncSession]:
+    """Sessão para consumidores que só precisam consultar dado de domínio
+    alheio (ex.: um worker lendo tabelas que outra API é dona), sem
+    duplicar a regra de negócio de escrita desse domínio.
+
+    A transação é aberta como READ ONLY no próprio banco — uma tentativa
+    de escrita falha ali, não depende de review de código para ser pega.
+    """
+    factory = get_session_factory()
+    async with factory() as session:
+        await session.execute(text("START TRANSACTION READ ONLY"))
+        try:
+            yield session
+        finally:
+            await session.rollback()
 
 
 async def close_engine() -> None:
