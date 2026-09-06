@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, func, JSON
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, String, func, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from scaffold.base import CoreBase
@@ -32,6 +32,7 @@ class ResumeBuildSession(CoreBase):
         nullable=False,
         server_default=mysql_default("resume_session_status", ResumeSessionStatus.STARTED),
     )
+    current_step_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     session_metadata: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, server_default="{}")

@@ -254,6 +254,26 @@ class ResumeSessionStatus(StrEnum):
     PAUSED = "paused"
 
 
+class ResumeProfileSource(StrEnum):
+    WORKFLOW = "workflow"
+    DIRECT_API = "direct_api"
+
+
+class ResumeCredentialType(StrEnum):
+    COURSE = "course"
+    CERTIFICATION = "certification"
+
+
+class ResumeVolunteerType(StrEnum):
+    PROJECT = "projeto"
+    VOLUNTEERING = "voluntariado"
+
+
+class ResumeReferenceType(StrEnum):
+    LETTER = "carta"
+    REFERRAL = "indicacao"
+
+
 class ResumeDocumentFormat(StrEnum):
     PDF = "pdf"
     HTML = "html"

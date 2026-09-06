@@ -43,6 +43,13 @@ from scaffold.models.resume.resume_build_answers import ResumeBuildAnswer
 from scaffold.models.resume.resume_build_sessions import ResumeBuildSession
 from scaffold.models.resume.resume_build_steps import ResumeBuildStep
 from scaffold.models.resume.resume_versions import ResumeVersion
+from scaffold.models.resume.resume_profiles import ResumeProfile
+from scaffold.models.resume.resume_profile_experiences import ResumeProfileExperience
+from scaffold.models.resume.resume_profile_education import ResumeProfileEducation
+from scaffold.models.resume.resume_profile_languages import ResumeProfileLanguage
+from scaffold.models.resume.resume_profile_credentials import ResumeProfileCredential
+from scaffold.models.resume.resume_profile_volunteer_entries import ResumeProfileVolunteerEntry
+from scaffold.models.resume.resume_profile_references import ResumeProfileReference
 from scaffold.models.search.job_collection_checkpoints import JobCollectionCheckpoint
 from scaffold.models.search.job_collection_definitions import JobCollectionDefinition
 from scaffold.models.search.job_collection_runs import JobCollectionRun
@@ -60,6 +67,13 @@ from scaffold.models.tracking.tracking_sessions import TrackingSession
 from scaffold.models.tracking.tracking_visits import TrackingVisit
 
 __all__ = [
+    "ResumeProfile",
+    "ResumeProfileExperience",
+    "ResumeProfileEducation",
+    "ResumeProfileLanguage",
+    "ResumeProfileCredential",
+    "ResumeProfileVolunteerEntry",
+    "ResumeProfileReference",
     "ApplicationArtifact",
     "ApplicationDomainRule",
     "ApplicationEvent",
