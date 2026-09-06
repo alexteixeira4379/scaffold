@@ -1,15 +1,15 @@
-"""Seeder: Popula resume_build_steps com os steps do workflow de onboarding.
+"""Seeder: Popula resume_build_steps com os steps do workflow de criação de currículo.
 
 Usage:
     python scripts/seederResumeBuildSteps.py
     python scripts/seederResumeBuildSteps.py --no-reset  # skip deletion phase
 """
+
 from __future__ import annotations
 
 import argparse
 import asyncio
 import importlib
-import json
 import sys
 from pathlib import Path
 
@@ -28,98 +28,23 @@ from scaffold.models.resume.resume_build_steps import ResumeBuildStep  # noqa: E
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# STEPS DO WORKFLOW DE ONBOARDING
+# STEPS DO WORKFLOW DE CRIAÇÃO DE CURRÍCULO
 # ═══════════════════════════════════════════════════════════════════════════════
 
+REMOVED_STEP_KEYS: frozenset[str] = frozenset(
+    {
+        "choose_plan",
+        "info_plan_platinum",
+        "info_plan_diamond",
+        "info_plan_black",
+        "show_job_template",
+        "ask_payment_link",
+        "reason_no_payment",
+        "user_email",
+    }
+)
+
 STEPS: list[dict] = [
-    {
-        "step_key": "choose_plan",
-        "step_label": "Escolha de plano",
-        "description": "Candidato escolhe o plano: platinum, diamond ou black.",
-        "step_order": 1,
-        "input_type": ResumeStepInputType.SELECT,
-        "is_required": True,
-        "options": {
-            "legacy_id": 24,
-            "question": "Olá! É um prazer, sou Jobito! 👋 Fique tranquilo, vamos automatizar sua busca por emprego.\n\nEscolha o plano que melhor combina com você:\n\n💼 *Jobito Platinum* — R$ 19,90/mês\n- Análise de perfil e busca compatível (aumenta chances de MATCH)\n- Alertas e curadoria de vagas compatíveis no WhatsApp\n- Aviso quando uma vaga recente for postada (chegue antes)\n\n🚀 *Jobito Diamond* — R$ 49,90/mês\n- Tudo do Platinum +\n- Envio automático do seu currículo para empresas compatíveis\n- Aplicação automática no LinkedIn\n- Carta de apresentação personalizada para cada vaga\n- Relatório semanal de envios\n\n👑 *Jobito Black* — R$ 79,90/mês\n- Tudo do Diamond +\n- Currículo reformulado para cada vaga, destacando competências alinhadas\n\nQual você escolhe?",
-            "question_options": ["platinum", "diamond", "black"],
-            "question_type": "resume",
-            "answer_format": "option",
-            "answer_format_output": {"type": "string", "enum": ["platinum", "diamond", "black"]},
-            "agent_prompt": "Analise a resposta do usuário e identifique qual plano ele escolheu. Normalize para: platinum, diamond ou black.",
-            "step_condition": None,
-            "repeat_for": None,
-            "dispatch_job": False,
-            "awaiting_time": None,
-            "auto_import": True,
-        },
-    },
-    {
-        "step_key": "info_plan_platinum",
-        "step_label": "Informativo plano Platinum",
-        "description": "Mensagem informativa sobre o plano Platinum. Aguarda confirmação de leitura.",
-        "step_order": 2,
-        "input_type": ResumeStepInputType.TEXT,
-        "is_required": False,
-        "options": {
-            "legacy_id": 50,
-            "question": "👋 Oi, eu sou o *Jobito*. É um prazer falar com você!\n\nEu vou buscar oportunidades que tenham a ver com o seu perfil e te avisar assim que aparecer algo interessante.\n\nVocê não precisa mais ficar procurando vaga manualmente: eu faço a curadoria e te envio os alertas direto no WhatsApp.\n\nTopa deixar o Jobito trabalhar por você?",
-            "question_options": ["Continuar"],
-            "question_type": "resume",
-            "answer_format": "ack",
-            "answer_format_output": {"type": "string", "enum": ["continuar"]},
-            "agent_prompt": "Passo informativo. Avançar quando o usuário confirmar leitura.",
-            "step_condition": {"wk_id": 24, "wk_option": "platinum"},
-            "repeat_for": None,
-            "dispatch_job": False,
-            "awaiting_time": None,
-            "auto_import": True,
-        },
-    },
-    {
-        "step_key": "info_plan_diamond",
-        "step_label": "Informativo plano Diamond",
-        "description": "Mensagem informativa sobre o plano Diamond. Aguarda confirmação de leitura.",
-        "step_order": 2,
-        "input_type": ResumeStepInputType.TEXT,
-        "is_required": False,
-        "options": {
-            "legacy_id": 51,
-            "question": "👋 Bem-vindo! Eu sou o *Jobito*.\n\nEu vou levar sua busca de emprego para outro nível.\n\nAnaliso seu perfil, encontro vagas que fazem sentido pra você, ajusto seu currículo para cada oportunidade e faço as candidaturas automaticamente nos principais sites de emprego.\n\nVocê recebe um resumo periódico com o que foi feito e só precisa acompanhar tudo pelo WhatsApp.",
-            "question_options": ["Continuar"],
-            "question_type": "resume",
-            "answer_format": "ack",
-            "answer_format_output": {"type": "string", "enum": ["continuar"]},
-            "agent_prompt": "Passo informativo. Avançar quando o usuário confirmar leitura.",
-            "step_condition": {"wk_id": 24, "wk_option": "diamond"},
-            "repeat_for": None,
-            "dispatch_job": False,
-            "awaiting_time": None,
-            "auto_import": True,
-        },
-    },
-    {
-        "step_key": "info_plan_black",
-        "step_label": "Informativo plano Black",
-        "description": "Mensagem informativa sobre o plano Black. Aguarda confirmação de leitura.",
-        "step_order": 2,
-        "input_type": ResumeStepInputType.TEXT,
-        "is_required": False,
-        "options": {
-            "legacy_id": 53,
-            "question": "👋 Oi, eu sou o *Jobito*. É um prazer falar com você!\n\nA partir de agora, sua busca por emprego fica no piloto automático. Nada de passar o dia no LinkedIn, Indeed, Catho, Google Jobs e outros portais.\n\nSeu tempo é valioso. Deixe que a gente cuida dessa parte pra você.",
-            "question_options": ["Continuar"],
-            "question_type": "resume",
-            "answer_format": "ack",
-            "answer_format_output": {"type": "string", "enum": ["continuar"]},
-            "agent_prompt": "Passo informativo. Avançar quando o usuário confirmar leitura.",
-            "step_condition": {"wk_id": 24, "wk_option": "black"},
-            "repeat_for": None,
-            "dispatch_job": False,
-            "awaiting_time": None,
-            "auto_import": True,
-        },
-    },
     {
         "step_key": "welcome_upload_cv",
         "step_label": "Enviar CV ou criar do zero",
@@ -128,12 +53,15 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.SELECT,
         "is_required": True,
         "options": {
-            "legacy_id": 1,
+            "profile_target": {"section": None, "mode": "ignore"},
             "question": "Para isso funcionar da melhor forma, precisamos ter o seu currículo em mãos.\n\nNós vamos analisar o seu CV para selecionar as melhores vagas com base nas suas experiências e no seu perfil profissional.\n\nComo você prefere seguir?\n1) Enviar o seu currículo atual\n2) Criar um currículo do zero com a nossa IA",
             "question_options": ["Enviar meu currículo", "Criar CV com a IA"],
             "question_type": "wk",
             "answer_format": "text",
-            "answer_format_output": {"type": "string", "enum": ["Enviar meu currículo", "Criar CV com a IA"]},
+            "answer_format_output": {
+                "type": "string",
+                "enum": ["Enviar meu currículo", "Criar CV com a IA"],
+            },
             "agent_prompt": "Analise a mensagem do usuário e identifique se ele respondeu 'Enviar meu currículo' ou 'Criar CV com a IA'.",
             "step_condition": None,
             "repeat_for": None,
@@ -150,14 +78,14 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.FILE,
         "is_required": False,
         "options": {
-            "legacy_id": 2,
+            "profile_target": {"section": None, "mode": "ignore"},
             "question": "Por favor, envie seu currículo em PDF para que possamos continuar sua análise. 📄",
             "question_options": None,
             "question_type": "resume",
             "answer_format": "text",
             "answer_format_output": "simple_answer_output",
             "agent_prompt": "Este passo serve apenas para repassar o texto recebido sem alterar o conteúdo.",
-            "step_condition": {"wk_id": 1, "wk_option": "Enviar meu currículo"},
+            "step_condition": {"when_step": "welcome_upload_cv", "equals": "Enviar meu currículo"},
             "repeat_for": None,
             "dispatch_job": False,
             "awaiting_time": None,
@@ -172,36 +100,14 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.TEXT,
         "is_required": False,
         "options": {
-            "legacy_id": 3,
+            "profile_target": {"section": None, "mode": "ignore"},
             "question": "Tudo bem! Vamos fazer algumas perguntas agora. Fique à vontade para mandar **Áudio** ou **Texto**.",
             "question_options": None,
             "question_type": "info",
             "answer_format": "text",
             "answer_format_output": None,
             "agent_prompt": "Explique que o processo continuará com perguntas manuais.",
-            "step_condition": {"wk_id": 1, "wk_option": "Criar CV com a IA"},
-            "repeat_for": None,
-            "dispatch_job": False,
-            "awaiting_time": None,
-            "auto_import": True,
-        },
-    },
-    {
-        "step_key": "user_email",
-        "step_label": "E-mail do candidato",
-        "description": "Coleta o e-mail de contato do candidato.",
-        "step_order": 40,
-        "input_type": ResumeStepInputType.TEXT,
-        "is_required": True,
-        "options": {
-            "legacy_id": 4,
-            "question": "Para começar, informe seu e-mail.",
-            "question_options": None,
-            "question_type": "resume",
-            "answer_format": "email",
-            "answer_format_output": {"type": ["string", "null"], "description": "Endereço de e-mail identificado.", "format": "email"},
-            "agent_prompt": "Analise a mensagem do usuário e identifique se ela contém um endereço de e-mail válido.",
-            "step_condition": None,
+            "step_condition": {"when_step": "welcome_upload_cv", "equals": "Criar CV com a IA"},
             "repeat_for": None,
             "dispatch_job": False,
             "awaiting_time": None,
@@ -210,31 +116,25 @@ STEPS: list[dict] = [
     },
     {
         "step_key": "job_and_skills_summary",
-        "step_label": "Cargo, salário e resumo profissional",
-        "description": "Coleta cargo desejado, salário pretendido e resumo de habilidades.",
+        "step_label": "Resumo profissional",
+        "description": "Coleta o resumo de habilidades e experiência para o currículo.",
         "step_order": 50,
         "input_type": ResumeStepInputType.TEXTAREA,
         "is_required": True,
         "options": {
-            "legacy_id": 5,
-            "question": "Fale sobre o cargo que busca, seu salário desejado e um breve resumo das suas habilidades.",
+            "profile_target": {"section": "summary", "mode": "set"},
+            "question": "Conte um pouco sobre suas habilidades e experiência profissional — um breve resumo para o seu currículo.",
             "question_options": None,
             "question_type": "resume",
             "answer_format": "text",
             "answer_format_output": {
-                "type": "object",
-                "properties": {
-                    "cargo": {"type": "string", "description": "Profissão ou título do cargo desejado"},
-                    "salario": {"type": "integer", "description": "Valor numérico do salário pretendido"},
-                    "moeda": {"type": "string", "enum": ["BRL", "USD", "EUR", "ARS"], "default": "BRL"},
-                    "resumo": {"type": "string", "description": "Resumo sobre habilidades e experiência"},
-                },
-                "required": ["cargo", "salario", "resumo"],
+                "type": "string",
+                "description": "Resumo profissional para a seção de perfil do currículo.",
             },
-            "agent_prompt": "Analise a resposta do usuário e extraia: cargo desejado, salário pretendido (valor numérico), moeda e resumo profissional.",
+            "agent_prompt": "Analise a resposta do usuário e extraia um resumo profissional conciso para o currículo.",
             "step_condition": None,
             "repeat_for": None,
-            "dispatch_job": True,
+            "dispatch_job": False,
             "awaiting_time": None,
             "auto_import": True,
         },
@@ -247,8 +147,8 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.TEXTAREA,
         "is_required": True,
         "options": {
-            "legacy_id": 6,
-            "question": "Agora sobre seu histórico profissional — se não tiver, diga \"nenhum\". Caso tenha, mencione o nome das empresas onde já atuou (ex: Coca Cola, Microsoft, Enel etc).",
+            "profile_target": {"section": None, "mode": "source_only"},
+            "question": 'Agora sobre seu histórico profissional — se não tiver, diga "nenhum". Caso tenha, mencione o nome das empresas onde já atuou (ex: Coca Cola, Microsoft, Enel etc).',
             "question_options": None,
             "question_type": "resume",
             "answer_format": "text",
@@ -269,7 +169,7 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.TEXTAREA,
         "is_required": False,
         "options": {
-            "legacy_id": 7,
+            "profile_target": {"section": "experiences", "mode": "append_indexed"},
             "question": "Para a empresa [content], pode nos contar qual era seu cargo, atividades, data de início e saída?",
             "question_options": None,
             "question_type": "resume",
@@ -277,17 +177,18 @@ STEPS: list[dict] = [
             "answer_format_output": {
                 "type": "object",
                 "properties": {
+                    "is_current": {"type": "boolean"},
                     "empresa": {"type": "string"},
                     "cargo": {"type": "string"},
                     "atividades": {"type": "string"},
-                    "data_inicio": {"type": ["string", "null"]},
-                    "data_saida": {"type": ["string", "null"]},
+                    "data_inicio": {"type": ["string", "null"], "format": "date"},
+                    "data_saida": {"type": ["string", "null"], "format": "date"},
                 },
                 "required": ["empresa", "cargo", "atividades"],
             },
-            "agent_prompt": "Analise a resposta do usuário sobre sua experiência na empresa e extraia: cargo, atividades, data de início e saída.",
-            "step_condition": {"wk_id": 6},
-            "repeat_for": {"wk_id": 6, "wk_answer_splitter": ","},
+            "agent_prompt": "Analise a resposta do usuário sobre sua experiência na empresa e extraia: cargo, atividades, data de início e saída. Datas devem ser normalizadas para o formato ISO (AAAA-MM-DD, usando o dia 01 quando o candidato não informar o dia). Se o candidato disser que ainda está em andamento (emprego atual, curso em andamento), retorne a data de término/saída como null e marque is_current como true.",
+            "step_condition": {"when_step": "previous_companies"},
+            "repeat_for": {"for_each": "previous_companies", "splitter": ","},
             "dispatch_job": False,
             "awaiting_time": None,
             "auto_import": True,
@@ -301,12 +202,27 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.SELECT,
         "is_required": True,
         "options": {
-            "legacy_id": 8,
+            "profile_target": {"section": None, "mode": "source_only"},
             "question": "Qual seu nível de escolaridade?",
-            "question_options": ["Médio Completo", "Médio Incompleto", "Superior Completo", "Superior Incompleto", "Pós Graduado"],
+            "question_options": [
+                "Médio Completo",
+                "Médio Incompleto",
+                "Superior Completo",
+                "Superior Incompleto",
+                "Pós Graduado",
+            ],
             "question_type": "resume",
             "answer_format": "option",
-            "answer_format_output": {"type": "string", "enum": ["Médio Completo", "Médio Incompleto", "Superior Completo", "Superior Incompleto", "Pós Graduado"]},
+            "answer_format_output": {
+                "type": "string",
+                "enum": [
+                    "Médio Completo",
+                    "Médio Incompleto",
+                    "Superior Completo",
+                    "Superior Incompleto",
+                    "Pós Graduado",
+                ],
+            },
             "agent_prompt": "Analise a resposta do usuário e identifique o nível de escolaridade mais alto.",
             "step_condition": None,
             "repeat_for": None,
@@ -323,14 +239,24 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.TEXT,
         "is_required": False,
         "options": {
-            "legacy_id": 9,
+            "profile_target": {"section": "education", "mode": "append"},
             "question": "📚 Em qual escola você cursou o ensino médio?\n\n📅 Informe também o ano de conclusão.",
             "question_options": None,
             "question_type": "resume",
             "answer_format": "text",
-            "answer_format_output": {"type": "object", "properties": {"nivel": {"type": "string", "enum": ["Médio"]}, "instituicao": {"type": "string"}, "ano_conclusao": {"type": ["string", "null"]}}, "required": ["nivel", "instituicao"]},
-            "agent_prompt": "Analise a resposta e extraia o nome da escola e o ano de conclusão do ensino médio.",
-            "step_condition": {"wk_id": 8, "wk_option": ["Médio Completo"]},
+            "answer_format_output": {
+                "type": "object",
+                "properties": {
+                    "is_current": {"type": "boolean"},
+                    "nivel": {"type": "string", "enum": ["Médio"]},
+                    "instituicao": {"type": "string"},
+                    "data_inicio": {"type": ["string", "null"], "format": "date"},
+                    "data_termino": {"type": ["string", "null"], "format": "date"},
+                },
+                "required": ["nivel", "instituicao"],
+            },
+            "agent_prompt": "Analise a resposta e extraia o nome da escola e o ano de conclusão do ensino médio. Datas devem ser normalizadas para o formato ISO (AAAA-MM-DD, usando o dia 01 quando o candidato não informar o dia). Se o candidato disser que ainda está em andamento (emprego atual, curso em andamento), retorne a data de término/saída como null e marque is_current como true.",
+            "step_condition": {"when_step": "education_level", "in": ["Médio Completo"]},
             "repeat_for": None,
             "dispatch_job": False,
             "awaiting_time": None,
@@ -345,14 +271,24 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.TEXT,
         "is_required": False,
         "options": {
-            "legacy_id": 26,
+            "profile_target": {"section": "education", "mode": "append"},
             "question": "📚 Em qual escola você cursou ou está cursando o ensino médio (mesmo que tenha interrompido)?\n\n📅 Se souber, informe também o ano em que concluiu, pretende concluir ou em que parou os estudos.",
             "question_options": None,
             "question_type": "resume",
             "answer_format": "text",
-            "answer_format_output": {"type": "object", "properties": {"nivel": {"type": "string", "enum": ["Médio"]}, "instituicao": {"type": "string"}, "ano_conclusao": {"type": ["string", "null"]}}, "required": ["nivel", "instituicao"]},
-            "agent_prompt": "Analise a resposta e extraia nome da escola e ano de conclusão/previsão do ensino médio.",
-            "step_condition": {"wk_id": 8, "wk_option": ["Médio Incompleto"]},
+            "answer_format_output": {
+                "type": "object",
+                "properties": {
+                    "is_current": {"type": "boolean"},
+                    "nivel": {"type": "string", "enum": ["Médio"]},
+                    "instituicao": {"type": "string"},
+                    "data_inicio": {"type": ["string", "null"], "format": "date"},
+                    "data_termino": {"type": ["string", "null"], "format": "date"},
+                },
+                "required": ["nivel", "instituicao"],
+            },
+            "agent_prompt": "Analise a resposta e extraia nome da escola e ano de conclusão/previsão do ensino médio. Datas devem ser normalizadas para o formato ISO (AAAA-MM-DD, usando o dia 01 quando o candidato não informar o dia). Se o candidato disser que ainda está em andamento (emprego atual, curso em andamento), retorne a data de término/saída como null e marque is_current como true.",
+            "step_condition": {"when_step": "education_level", "in": ["Médio Incompleto"]},
             "repeat_for": None,
             "dispatch_job": False,
             "awaiting_time": None,
@@ -367,14 +303,25 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.TEXT,
         "is_required": False,
         "options": {
-            "legacy_id": 10,
+            "profile_target": {"section": "education", "mode": "append"},
             "question": "🎓 Nos informe o nome da faculdade e o curso que você fez.\n\n📅 Informe também as datas de início e término.",
             "question_options": None,
             "question_type": "resume",
             "answer_format": "text",
-            "answer_format_output": {"type": "object", "properties": {"nivel": {"type": "string", "enum": ["Superior"]}, "instituicao": {"type": "string"}, "curso": {"type": "string"}, "data_inicio": {"type": ["string", "null"]}, "data_termino": {"type": ["string", "null"]}}, "required": ["nivel", "instituicao", "curso"]},
-            "agent_prompt": "Analise a resposta e extraia nome da faculdade, curso e datas de início e término.",
-            "step_condition": {"wk_id": 8, "wk_option": ["Superior Completo"]},
+            "answer_format_output": {
+                "type": "object",
+                "properties": {
+                    "is_current": {"type": "boolean"},
+                    "nivel": {"type": "string", "enum": ["Superior"]},
+                    "instituicao": {"type": "string"},
+                    "curso": {"type": "string"},
+                    "data_inicio": {"type": ["string", "null"], "format": "date"},
+                    "data_termino": {"type": ["string", "null"], "format": "date"},
+                },
+                "required": ["nivel", "instituicao", "curso"],
+            },
+            "agent_prompt": "Analise a resposta e extraia nome da faculdade, curso e datas de início e término. Datas devem ser normalizadas para o formato ISO (AAAA-MM-DD, usando o dia 01 quando o candidato não informar o dia). Se o candidato disser que ainda está em andamento (emprego atual, curso em andamento), retorne a data de término/saída como null e marque is_current como true.",
+            "step_condition": {"when_step": "education_level", "in": ["Superior Completo"]},
             "repeat_for": None,
             "dispatch_job": False,
             "awaiting_time": None,
@@ -389,14 +336,25 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.TEXT,
         "is_required": False,
         "options": {
-            "legacy_id": 27,
+            "profile_target": {"section": "education", "mode": "append"},
             "question": "🎓 Nos informe o nome da faculdade e o curso que você está fazendo.\n\n📅 Também envie as datas de início e a previsão de término.",
             "question_options": None,
             "question_type": "resume",
             "answer_format": "text",
-            "answer_format_output": {"type": "object", "properties": {"nivel": {"type": "string", "enum": ["Superior"]}, "instituicao": {"type": "string"}, "curso": {"type": "string"}, "data_inicio": {"type": ["string", "null"]}, "data_termino": {"type": ["string", "null"]}}, "required": ["nivel", "instituicao", "curso"]},
-            "agent_prompt": "Analise a resposta e extraia nome da faculdade, curso e datas de início e previsão de término.",
-            "step_condition": {"wk_id": 8, "wk_option": ["Superior Incompleto"]},
+            "answer_format_output": {
+                "type": "object",
+                "properties": {
+                    "is_current": {"type": "boolean"},
+                    "nivel": {"type": "string", "enum": ["Superior"]},
+                    "instituicao": {"type": "string"},
+                    "curso": {"type": "string"},
+                    "data_inicio": {"type": ["string", "null"], "format": "date"},
+                    "data_termino": {"type": ["string", "null"], "format": "date"},
+                },
+                "required": ["nivel", "instituicao", "curso"],
+            },
+            "agent_prompt": "Analise a resposta e extraia nome da faculdade, curso e datas de início e previsão de término. Datas devem ser normalizadas para o formato ISO (AAAA-MM-DD, usando o dia 01 quando o candidato não informar o dia). Se o candidato disser que ainda está em andamento (emprego atual, curso em andamento), retorne a data de término/saída como null e marque is_current como true.",
+            "step_condition": {"when_step": "education_level", "in": ["Superior Incompleto"]},
             "repeat_for": None,
             "dispatch_job": False,
             "awaiting_time": None,
@@ -411,14 +369,25 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.TEXT,
         "is_required": False,
         "options": {
-            "legacy_id": 20,
+            "profile_target": {"section": "education", "mode": "append"},
             "question": "🎓 Informe o nome da instituição onde você fez (ou está fazendo) a pós-graduação e o curso realizado.\n\n📅 Informe também as datas de início e término (ou a previsão de término, se ainda estiver cursando).",
             "question_options": None,
             "question_type": "resume",
             "answer_format": "text",
-            "answer_format_output": {"type": "object", "properties": {"nivel": {"type": "string", "enum": ["Superior"]}, "instituicao": {"type": "string"}, "curso": {"type": "string"}, "data_inicio": {"type": ["string", "null"]}, "data_termino": {"type": ["string", "null"]}}, "required": ["nivel", "instituicao", "curso"]},
-            "agent_prompt": "Analise a resposta e extraia nome da instituição, curso de pós-graduação e datas.",
-            "step_condition": {"wk_id": 8, "wk_option": ["Pós Graduado"]},
+            "answer_format_output": {
+                "type": "object",
+                "properties": {
+                    "is_current": {"type": "boolean"},
+                    "nivel": {"type": "string", "enum": ["Superior"]},
+                    "instituicao": {"type": "string"},
+                    "curso": {"type": "string"},
+                    "data_inicio": {"type": ["string", "null"], "format": "date"},
+                    "data_termino": {"type": ["string", "null"], "format": "date"},
+                },
+                "required": ["nivel", "instituicao", "curso"],
+            },
+            "agent_prompt": "Analise a resposta e extraia nome da instituição, curso de pós-graduação e datas. Datas devem ser normalizadas para o formato ISO (AAAA-MM-DD, usando o dia 01 quando o candidato não informar o dia). Se o candidato disser que ainda está em andamento (emprego atual, curso em andamento), retorne a data de término/saída como null e marque is_current como true.",
+            "step_condition": {"when_step": "education_level", "in": ["Pós Graduado"]},
             "repeat_for": None,
             "dispatch_job": False,
             "awaiting_time": None,
@@ -433,7 +402,7 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.TEXT,
         "is_required": False,
         "options": {
-            "legacy_id": 12,
+            "profile_target": {"section": None, "mode": "ignore"},
             "question": "Ótimo, seu CV está ficando excelente! Agora vamos para a sessão de informações extras. Todas são *opcionais*.",
             "question_options": None,
             "question_type": "info",
@@ -455,7 +424,7 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.SELECT,
         "is_required": False,
         "options": {
-            "legacy_id": 28,
+            "profile_target": {"section": None, "mode": "source_only"},
             "question": "Você deseja adicionar algum curso extra ao seu currículo? (por exemplo: curso técnico, curso livre ou curso online).",
             "question_options": ["Sim", "Não"],
             "question_type": "resume",
@@ -477,14 +446,18 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.TEXTAREA,
         "is_required": False,
         "options": {
-            "legacy_id": 29,
+            "profile_target": {
+                "section": "credentials",
+                "mode": "append_list",
+                "credential_type": "course",
+            },
             "question": "Liste os cursos extras que você deseja adicionar ao currículo, informando apenas o nome de cada um.\nExemplo: Curso de Excel Avançado, Curso de Programação Web.",
             "question_options": None,
             "question_type": "resume",
             "answer_format": "text",
             "answer_format_output": {"type": "array", "items": {"type": "string"}},
             "agent_prompt": "Analise a resposta e extraia os cursos extras mencionados.",
-            "step_condition": {"wk_id": 28, "wk_option": "Sim"},
+            "step_condition": {"when_step": "extra_info_or_course", "equals": "Sim"},
             "repeat_for": None,
             "dispatch_job": False,
             "awaiting_time": None,
@@ -499,7 +472,7 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.SELECT,
         "is_required": False,
         "options": {
-            "legacy_id": 30,
+            "profile_target": {"section": None, "mode": "source_only"},
             "question": "Você possui alguma certificação que deseja adicionar ao seu currículo? (por exemplo: certificações profissionais ou exames de proficiência).",
             "question_options": ["Sim", "Não"],
             "question_type": "resume",
@@ -521,14 +494,18 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.TEXTAREA,
         "is_required": False,
         "options": {
-            "legacy_id": 31,
+            "profile_target": {
+                "section": "credentials",
+                "mode": "append_list",
+                "credential_type": "certification",
+            },
             "question": "Liste as certificações que você deseja adicionar ao currículo, informando apenas o nome de cada uma.\nExemplo: Certificação AWS Solutions Architect, Certificação ITIL Foundation.",
             "question_options": None,
             "question_type": "resume",
             "answer_format": "text",
             "answer_format_output": {"type": "array", "items": {"type": "string"}},
             "agent_prompt": "Analise a resposta e extraia as certificações mencionadas.",
-            "step_condition": {"wk_id": 30, "wk_option": "Sim"},
+            "step_condition": {"when_step": "extra_certifications", "equals": "Sim"},
             "repeat_for": None,
             "dispatch_job": False,
             "awaiting_time": None,
@@ -543,7 +520,7 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.SELECT,
         "is_required": False,
         "options": {
-            "legacy_id": 13,
+            "profile_target": {"section": None, "mode": "source_only"},
             "question": "Fala algum idioma além do português?",
             "question_options": ["Sim", "Não"],
             "question_type": "resume",
@@ -565,14 +542,18 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.TEXTAREA,
         "is_required": False,
         "options": {
-            "legacy_id": 14,
+            "profile_target": {
+                "section": "languages",
+                "mode": "set_indexed_field",
+                "field": "idioma",
+            },
             "question": "Informe quais idiomas você fala.",
             "question_options": None,
             "question_type": "resume",
             "answer_format": "text",
             "answer_format_output": {"type": "array", "items": {"type": "string"}},
             "agent_prompt": "Analise a resposta e extraia a lista de idiomas mencionados.",
-            "step_condition": {"wk_id": 13, "wk_option": "Sim"},
+            "step_condition": {"when_step": "speaks_languages", "equals": "Sim"},
             "repeat_for": None,
             "dispatch_job": False,
             "awaiting_time": None,
@@ -587,15 +568,22 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.SELECT,
         "is_required": False,
         "options": {
-            "legacy_id": 15,
+            "profile_target": {
+                "section": "languages",
+                "mode": "set_indexed_field",
+                "field": "nivel",
+            },
             "question": "Para o idioma [content], qual seu nível?",
             "question_options": ["básico", "intermediário", "avançado", "fluente"],
             "question_type": "resume",
             "answer_format": "text",
-            "answer_format_output": {"type": "string", "enum": ["básico", "intermediário", "avançado", "fluente"]},
+            "answer_format_output": {
+                "type": "string",
+                "enum": ["básico", "intermediário", "avançado", "fluente"],
+            },
             "agent_prompt": "Analise a resposta e identifique o nível de conversação no idioma informado.",
-            "step_condition": {"wk_id": 13, "wk_option": "Sim"},
-            "repeat_for": {"wk_id": 14, "wk_answer_splitter": ","},
+            "step_condition": {"when_step": "speaks_languages", "equals": "Sim"},
+            "repeat_for": {"for_each": "language_list", "splitter": ","},
             "dispatch_job": False,
             "awaiting_time": None,
             "auto_import": True,
@@ -609,7 +597,7 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.SELECT,
         "is_required": False,
         "options": {
-            "legacy_id": 16,
+            "profile_target": {"section": None, "mode": "source_only"},
             "question": "Tem alguma carta de referência ou indicação profissional?",
             "question_options": ["Sim", "Não"],
             "question_type": "resume",
@@ -631,14 +619,23 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.TEXTAREA,
         "is_required": False,
         "options": {
-            "legacy_id": 17,
+            "profile_target": {"section": "reference", "mode": "append"},
             "question": "Conte-nos sobre sua carta de referência ou quem te indicou e o cargo.",
             "question_options": None,
             "question_type": "resume",
             "answer_format": "text",
-            "answer_format_output": {"type": "object", "properties": {"tipo": {"type": ["string", "null"], "enum": ["carta", "indicacao", None]}, "nome": {"type": ["string", "null"]}, "cargo": {"type": ["string", "null"]}, "descricao": {"type": "string"}}, "required": ["descricao"]},
+            "answer_format_output": {
+                "type": "object",
+                "properties": {
+                    "tipo": {"type": ["string", "null"], "enum": ["carta", "indicacao", None]},
+                    "nome": {"type": ["string", "null"]},
+                    "cargo": {"type": ["string", "null"]},
+                    "descricao": {"type": "string"},
+                },
+                "required": ["descricao"],
+            },
             "agent_prompt": "Analise a resposta e extraia informações sobre a referência profissional.",
-            "step_condition": {"wk_id": 16, "wk_option": "Sim"},
+            "step_condition": {"when_step": "has_reference_letter", "equals": "Sim"},
             "repeat_for": None,
             "dispatch_job": False,
             "awaiting_time": None,
@@ -653,7 +650,7 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.SELECT,
         "is_required": False,
         "options": {
-            "legacy_id": 18,
+            "profile_target": {"section": None, "mode": "source_only"},
             "question": "Já realizou algum trabalho voluntário ou projeto relevante que gostaria de mencionar?",
             "question_options": ["Sim", "Não"],
             "question_type": "resume",
@@ -675,85 +672,31 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.TEXTAREA,
         "is_required": False,
         "options": {
-            "legacy_id": 19,
+            "profile_target": {"section": "volunteer", "mode": "append"},
             "question": "Conte-nos sobre seu trabalho voluntário ou projeto",
             "question_options": None,
             "question_type": "resume",
             "answer_format": "text",
-            "answer_format_output": {"type": "object", "properties": {"titulo": {"type": "string"}, "tipo": {"type": "string", "enum": ["projeto", "voluntariado"]}, "funcao": {"type": "string"}, "descricao": {"type": "string"}, "impacto": {"type": "string"}, "data_inicio": {"type": ["string", "null"]}, "data_fim": {"type": ["string", "null"]}}, "required": ["titulo", "tipo", "funcao", "descricao"]},
-            "agent_prompt": "Analise a resposta e extraia informações sobre o projeto ou trabalho voluntário.",
-            "step_condition": {"wk_id": 18, "wk_option": "Sim"},
+            "answer_format_output": {
+                "type": "object",
+                "properties": {
+                    "is_current": {"type": "boolean"},
+                    "titulo": {"type": "string"},
+                    "tipo": {"type": "string", "enum": ["projeto", "voluntariado"]},
+                    "funcao": {"type": "string"},
+                    "descricao": {"type": "string"},
+                    "impacto": {"type": "string"},
+                    "data_inicio": {"type": ["string", "null"], "format": "date"},
+                    "data_fim": {"type": ["string", "null"], "format": "date"},
+                },
+                "required": ["titulo", "tipo", "funcao", "descricao"],
+            },
+            "agent_prompt": "Analise a resposta e extraia informações sobre o projeto ou trabalho voluntário. Datas devem ser normalizadas para o formato ISO (AAAA-MM-DD, usando o dia 01 quando o candidato não informar o dia). Se o candidato disser que ainda está em andamento (emprego atual, curso em andamento), retorne a data de término/saída como null e marque is_current como true.",
+            "step_condition": {"when_step": "volunteer_work", "equals": "Sim"},
             "repeat_for": None,
             "dispatch_job": False,
             "awaiting_time": None,
             "auto_import": True,
-        },
-    },
-    {
-        "step_key": "show_job_template",
-        "step_label": "Mostrar vagas compatíveis",
-        "description": "Exibe template de vagas compatíveis e pede confirmação para continuar.",
-        "step_order": 199,
-        "input_type": ResumeStepInputType.TEXT,
-        "is_required": False,
-        "options": {
-            "legacy_id": 37,
-            "question": "🚀 Encontramos vagas que combinam com você!\n\nSeu cadastro foi finalizado e agora o Jobito já pode começar a trabalhar por você — analisando seu perfil e te conectando automaticamente às melhores oportunidades.\n\nPara liberar tudo isso e ativar seu CV inteligente, basta finalizar a assinatura do seu plano. Assim que o pagamento for confirmado, nossa IA começa a agir imediatamente.\n\nEstou por aqui se precisar de ajuda!",
-            "question_options": None,
-            "question_type": "info",
-            "answer_format": "ack",
-            "answer_format_output": {"type": "string", "enum": ["Continuar", "Não"]},
-            "agent_prompt": "Analise a resposta e identifique se o usuário deseja continuar o processo.",
-            "step_condition": None,
-            "repeat_for": None,
-            "dispatch_job": False,
-            "awaiting_time": None,
-            "auto_import": False,
-            "demo_template_html": True,
-        },
-    },
-    {
-        "step_key": "ask_payment_link",
-        "step_label": "Gostaria de receber link de pagamento?",
-        "description": "Pergunta se o candidato quer o link de pagamento para ativar o Jobito.",
-        "step_order": 200,
-        "input_type": ResumeStepInputType.SELECT,
-        "is_required": False,
-        "options": {
-            "legacy_id": 22,
-            "question": "Gostaria de receber o link de pagamento para ativar seu acesso ao Jobito e começar a receber vagas compatíveis automaticamente?",
-            "question_options": ["Quero o Jobito", "Não quero"],
-            "question_type": "resume",
-            "answer_format": "option",
-            "answer_format_output": {"type": "string", "enum": ["Quero o Jobito", "Não quero"]},
-            "agent_prompt": "Analise a resposta e identifique se o candidato deseja receber o link de pagamento.",
-            "step_condition": None,
-            "repeat_for": None,
-            "dispatch_job": False,
-            "awaiting_time": None,
-            "auto_import": False,
-        },
-    },
-    {
-        "step_key": "reason_no_payment",
-        "step_label": "Motivo da recusa",
-        "description": "Coleta motivo livre para não querer ativar o Jobito.",
-        "step_order": 210,
-        "input_type": ResumeStepInputType.TEXTAREA,
-        "is_required": False,
-        "options": {
-            "legacy_id": 23,
-            "question": "Tudo bem! Pode nos contar o motivo de não querer ativar o Jobito agora?",
-            "question_options": None,
-            "question_type": "resume",
-            "answer_format": "text",
-            "answer_format_output": {"type": "string", "description": "Texto livre com a justificativa do usuário."},
-            "agent_prompt": "Registre o motivo livre informado para não querer ativar o Jobito.",
-            "step_condition": {"wk_id": 22, "wk_option": "Não quero"},
-            "repeat_for": None,
-            "dispatch_job": False,
-            "awaiting_time": None,
-            "auto_import": False,
         },
     },
 ]
@@ -762,12 +705,16 @@ STEPS: list[dict] = [
 async def get_or_create_step(session, step_data: dict) -> ResumeBuildStep:
     """Insert or update a step by step_key."""
     row = (
-        await session.execute(
-            select(ResumeBuildStep)
-            .where(ResumeBuildStep.step_key == step_data["step_key"])
-            .limit(1)
+        (
+            await session.execute(
+                select(ResumeBuildStep)
+                .where(ResumeBuildStep.step_key == step_data["step_key"])
+                .limit(1)
+            )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
 
     options_json = step_data["options"]
 
@@ -807,17 +754,32 @@ async def run_seed(reset: bool) -> None:
                 )
                 existing_count = existing_count_result.scalar() or 0
                 if existing_count > 0:
-                    print(f"  ⚠️  Found {existing_count} existing steps (updating in-place, not deleting)")
+                    print(
+                        f"  ⚠️  Found {existing_count} existing steps (updating in-place, not deleting)"
+                    )
 
             for step_data in STEPS:
                 await get_or_create_step(session, step_data)
 
+            for removed_key in REMOVED_STEP_KEYS:
+                row = (
+                    (
+                        await session.execute(
+                            select(ResumeBuildStep)
+                            .where(ResumeBuildStep.step_key == removed_key)
+                            .limit(1)
+                        )
+                    )
+                    .scalars()
+                    .first()
+                )
+                if row is not None:
+                    row.active = False
+
             await session.commit()
 
             # Final count
-            count_result = await session.execute(
-                select(func.count()).select_from(ResumeBuildStep)
-            )
+            count_result = await session.execute(select(func.count()).select_from(ResumeBuildStep))
             total = count_result.scalar() or 0
 
         print(f"\n✅ Seeded {len(STEPS)} resume_build_steps (total in DB: {total})")
@@ -827,7 +789,7 @@ async def run_seed(reset: bool) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Seed resume_build_steps with onboarding workflow steps"
+        description="Seed resume_build_steps with resume build workflow steps"
     )
     parser.add_argument(
         "--no-reset",
