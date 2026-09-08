@@ -25,6 +25,8 @@ def missing_base_fields(candidate: dict[str, Any]) -> list[str]:
 
     email = str(candidate.get("email") or "").strip()
     linkedin = str(candidate.get("linkedin_url") or "").strip()
+    if email.startswith("auto_") and email.endswith("@jobito.dev"):
+        email = ""
     if not email and not linkedin:
         missing.append("contact")
 

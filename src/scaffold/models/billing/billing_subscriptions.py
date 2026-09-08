@@ -31,7 +31,7 @@ class BillingSubscription(CoreBase):
         _billing_subscription_status,
         nullable=False,
         server_default=mysql_default(
-            "billing_subscription_status", BillingSubscriptionStatus.ACTIVE
+            "billing_subscription_status", BillingSubscriptionStatus.INCOMPLETE
         ),
     )
     current_period_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

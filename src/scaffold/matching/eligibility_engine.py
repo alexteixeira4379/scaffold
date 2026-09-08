@@ -72,6 +72,7 @@ async def evaluate_entity_overlap(
     session: AsyncSession,
     job_id: int,
     candidate_target_profile_id: int,
+    context: dict | None = None,
 ) -> EntityMatchResult:
     """Calcula overlap de entidades profissionais entre vaga e perfil do candidato.
 
@@ -80,8 +81,11 @@ async def evaluate_entity_overlap(
     - Score final = min(100, direct_score + hierarchy_score)
     """
     # 1. Carregar entity_ids da vaga
-    job_entities = await job_professional_entity_repository.list_by_job_id(session, job_id)
-    job_entity_ids = {je.entity_id for je in job_entities}
+    if context is not None:
+        job_entity_ids = context["jobs"].get(job_id, set())
+    else:
+        job_entities = await job_professional_entity_repository.list_by_job_id(session, job_id)
+        job_entity_ids = {je.entity_id for je in job_entities}
 
     if not job_entity_ids:
         return EntityMatchResult(
@@ -94,7 +98,7 @@ async def evaluate_entity_overlap(
         )
 
     # 2. Carregar entity_ids do candidato
-    candidate_entity_ids_list = (
+    candidate_entity_ids_list = (context["candidate"] if context is not None else
         await candidate_target_profile_entity_repository.get_entity_ids_by_target_profile_id(
             session, candidate_target_profile_id
         )
@@ -119,10 +123,13 @@ async def evaluate_entity_overlap(
     hierarchy_overlap: set[int] = set()
     if direct_score < 100.0:
         for job_eid in job_entity_ids - direct_overlap:
-            parents = await professional_entity_hierarchy_relation_repository.list_parents_of_child(
-                session, job_eid, relation_type=None
-            )
-            parent_ids = {p.parent_entity_id for p in parents if p.depth == 1}
+            if context is not None:
+                parent_ids = context["parents"].get(job_eid, set())
+            else:
+                parents = await professional_entity_hierarchy_relation_repository.list_parents_of_child(
+                    session, job_eid, relation_type=None
+                )
+                parent_ids = {p.parent_entity_id for p in parents if p.depth == 1}
             matched_parents = parent_ids & candidate_entity_ids
             if matched_parents:
                 hierarchy_overlap.add(job_eid)
@@ -147,6 +154,7 @@ async def evaluate_profile(
     job: Job,
     job_keywords: list[JobRoutingKeyword],
     profile_with_keywords: ProfileWithKeywords,
+    *, entity_context: dict | None = None,
 ) -> EligibilityScore:
     """Evaluate a single candidate target profile against a job.
 
@@ -212,7 +220,7 @@ async def evaluate_profile(
     filters["salary"] = "pass"
 
     # --- Entity-based matching ---
-    entity_result = await evaluate_entity_overlap(session, job.id, profile.id)
+    entity_result = await evaluate_entity_overlap(session, job.id, profile.id, entity_context)
 
     # --- Keyword scoring ---
     job_keyword_set = {kw.keyword.lower() for kw in job_keywords}

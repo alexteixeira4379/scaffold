@@ -24,7 +24,7 @@ class Candidate(CoreBase):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     full_name: Mapped[str] = mapped_column(String(512), nullable=False)
-    email: Mapped[str] = mapped_column(String(320), nullable=False)
+    email: Mapped[str | None] = mapped_column(String(320), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(64), nullable=True)
     country: Mapped[str | None] = mapped_column(String(2), nullable=True)
     location: Mapped[str | None] = mapped_column(Text, nullable=True)

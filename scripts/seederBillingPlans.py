@@ -1,7 +1,7 @@
-"""Seeder: Popula billing_plans com os planos oferecidos no step choose_plan.
+"""Seeder: Popula billing_plans com os planos oferecidos na conversa.
 
-O código (`code`) de cada plano é o slug que o candidato escolhe na conversa
-(platinum/diamond/black — ver seederResumeBuildSteps.py, step "choose_plan").
+O código (`code`) de cada plano é o slug usado no checkout
+(platinum/diamond/black — ver billing-api e conversation-worker).
 O `stripe_price_id` é o Price ID real do Stripe, lido de variáveis de
 ambiente — não é hardcoded porque depende da conta Stripe configurada.
 
