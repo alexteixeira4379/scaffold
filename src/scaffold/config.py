@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     db_pool_size: int = 10
     db_max_overflow: int = 20
     db_pool_pre_ping: bool = True
+    # Recycle pooled connections before the MySQL server closes them on its
+    # wait_timeout, avoiding dead-transport errors on checkout. 0 disables.
+    db_pool_recycle: int = 280
     db_echo: bool = False
 
     messaging_backend: MessagingBackend = MessagingBackend.RABBITMQ
