@@ -295,6 +295,26 @@ class ResumeStepInputType(StrEnum):
     RICH_TEXT = "rich_text"
 
 
+class OnboardPhase(StrEnum):
+    BASE_PROFILE = "base_profile"
+    SELECT_PLAN = "select_plan"
+    CONFIRM_JOBS = "confirm_jobs"
+    CREATE_RESUME = "create_resume"
+    FINISH_RESUME = "finish_resume"
+    GENERATE_CHECKOUT = "generate_checkout"
+    WAIT_ACTIVATION = "wait_activation"
+
+
+class OnboardStepLayoutKind(StrEnum):
+    TEXT = "text"
+    REPLY_BUTTONS = "reply_buttons"
+    LIST = "list"
+    MULTI_CHOICE = "multi_choice"
+    IMAGE = "image"
+    DOCUMENT = "document"
+    CTA_URL = "cta_url"
+
+
 class ProfessionalEntityType(StrEnum):
     SKILL = "skill"
     TECHNOLOGY = "technology"

@@ -93,6 +93,10 @@ from scaffold.repositories.match_repositories import (
     job_match_repository,
     job_match_score_repository,
 )
+from scaffold.repositories.onboard_repositories import (
+    OnboardStepRepository,
+    onboard_step_repository,
+)
 from scaffold.repositories.resume_repositories import (
     CoverLetterVersionRepository,
     ResumeBuildAnswerRepository,
@@ -188,6 +192,7 @@ __all__ = [
     "JobRawPayloadRepository",
     "JobRepository",
     "JobRoutingKeywordRepository",
+    "OnboardStepRepository",
     "ProfessionalCollectionMembershipRepository",
     "ProfessionalCollectionRepository",
     "ProfessionalEntityAliasRepository",
@@ -248,6 +253,7 @@ __all__ = [
     "job_raw_payload_repository",
     "job_repository",
     "job_routing_keyword_repository",
+    "onboard_step_repository",
     "professional_collection_membership_repository",
     "professional_collection_repository",
     "professional_entity_alias_repository",

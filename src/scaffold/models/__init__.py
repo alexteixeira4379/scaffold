@@ -38,6 +38,7 @@ from scaffold.models.job.job_professional_entities import JobProfessionalEntity
 from scaffold.models.job.job_raw_payloads import JobRawPayload
 from scaffold.models.job.job_routing_keywords import JobRoutingKeyword
 from scaffold.models.job.jobs import Job
+from scaffold.models.onboard.onboard_steps import OnboardStep
 from scaffold.models.resume.cover_letter_versions import CoverLetterVersion
 from scaffold.models.resume.resume_build_answers import ResumeBuildAnswer
 from scaffold.models.resume.resume_build_sessions import ResumeBuildSession
@@ -118,6 +119,7 @@ __all__ = [
     "JobProfessionalEntity",
     "JobRawPayload",
     "JobRoutingKeyword",
+    "OnboardStep",
     "ProfessionalCollection",
     "ProfessionalCollectionMembership",
     "ProfessionalEntity",
