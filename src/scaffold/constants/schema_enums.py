@@ -46,12 +46,15 @@ class ExperienceLevel(StrEnum):
 
 
 class CandidateStatus(StrEnum):
-    PENDING = "pending"
+    # NOTE (migration 0027): `PENDING` and `ONBOARDING` were removed — onboarding
+    # progress now lives entirely in `profile_onboard_flows.status` (scaffold's
+    # orchestrator tables, see migration 0026). This enum is commercial
+    # lifecycle only from here on. See migration 0027's docstring for the
+    # backfill decision applied to rows that previously held those values.
     ACTIVE = "active"
     SUSPENDED = "suspended"
     CHURNED = "churned"
     BLOCKED = "blocked"
-    ONBOARDING = "onboarding"
 
 
 class LanguagePreference(StrEnum):
@@ -313,6 +316,36 @@ class OnboardStepLayoutKind(StrEnum):
     IMAGE = "image"
     DOCUMENT = "document"
     CTA_URL = "cta_url"
+
+
+class WorkflowSessionStatus(StrEnum):
+    STARTED = "started"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    ABANDONED = "abandoned"
+    FAILED = "failed"
+    PAUSED = "paused"
+
+
+class OrchestratorStepKind(StrEnum):
+    API_WORKFLOW = "api_workflow"
+    QUESTION = "question"
+    INFO = "info"
+    ACTION = "action"
+
+
+class OrchestratorStepStatus(StrEnum):
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    SKIPPED = "skipped"
+    DISABLED = "disabled"
+
+
+class ProfileOnboardFlowStatus(StrEnum):
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    ABANDONED = "abandoned"
 
 
 class ProfessionalEntityType(StrEnum):

@@ -34,10 +34,14 @@ class Candidate(CoreBase):
         nullable=False,
         server_default=mysql_default("candidate_language_preference", LanguagePreference.PT_BR),
     )
+    # Commercial lifecycle only (migration 0027 dropped ONBOARDING/PENDING —
+    # onboarding progress now lives in profile_onboard_flows.status). New rows
+    # default to CHURNED (not yet part of the active commercial funnel) until
+    # candidate-api explicitly promotes them to ACTIVE on workflow completion.
     status: Mapped[CandidateStatus] = mapped_column(
         _candidate_status,
         nullable=False,
-        server_default=mysql_default("candidate_status", CandidateStatus.PENDING),
+        server_default=mysql_default("candidate_status", CandidateStatus.CHURNED),
     )
     generated_token: Mapped[str | None] = mapped_column(String(128), nullable=True, unique=True)
     track_code: Mapped[str | None] = mapped_column(String(128), nullable=True)

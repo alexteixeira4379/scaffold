@@ -12,7 +12,6 @@ import sqlalchemy as sa
 from alembic import op
 
 from scaffold.constants.schema_enums import (
-    CandidateStatus,
     EmploymentType,
     ExperienceLevel,
     LanguagePreference,
@@ -26,7 +25,17 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 _cand_lang = mysql_enum(LanguagePreference, "candidate_language_preference")
-_cand_status = mysql_enum(CandidateStatus, "candidate_status")
+# Frozen as of this revision: CandidateStatus originally had 6 members
+# (pending, active, suspended, churned, blocked, onboarding). `onboarding`
+# and `pending` were later dropped by migration 0027 — this migration must
+# keep creating the original 6-member enum with a 'pending' default so a
+# from-scratch bootstrap replays history faithfully instead of depending on
+# the live (now-shrunk) CandidateStatus class.
+_cand_status = sa.dialects.mysql.ENUM(
+    "pending", "active", "suspended", "churned", "blocked", "onboarding",
+    name="candidate_status",
+    native_enum=True,
+)
 _job_remote = mysql_enum(RemoteType, "job_remote_type")
 _job_employment = mysql_enum(EmploymentType, "job_employment_type")
 _job_experience = mysql_enum(ExperienceLevel, "job_experience_level")
@@ -51,7 +60,7 @@ def upgrade() -> None:
         sa.Column(
             "status",
             _cand_status,
-            server_default=mysql_default("candidate_status", CandidateStatus.PENDING),
+            server_default=sa.text("'pending'"),
             nullable=False,
         ),
         sa.Column("generated_token", sa.String(128), nullable=True),

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, String, Text, UniqueConstraint, func, JSON
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, String, UniqueConstraint, func, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from scaffold.base import CoreBase

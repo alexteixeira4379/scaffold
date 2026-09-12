@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Mapping
-from typing import Any
 from urllib.parse import quote
 
 from scaffold.storage.contracts import StoredObject, StoredObjectBody

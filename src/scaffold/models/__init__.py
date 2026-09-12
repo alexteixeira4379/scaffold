@@ -17,12 +17,18 @@ from scaffold.models.billing.billing_events import BillingEvent
 from scaffold.models.billing.billing_payments import BillingPayment
 from scaffold.models.billing.billing_plans import BillingPlan
 from scaffold.models.billing.billing_subscriptions import BillingSubscription
+from scaffold.models.billing.billing_workflow_answers import BillingWorkflowAnswer
+from scaffold.models.billing.billing_workflow_sessions import BillingWorkflowSession
+from scaffold.models.billing.billing_workflow_steps import BillingWorkflowStep
 from scaffold.models.candidate.candidate_application_data import CandidateApplicationData
 from scaffold.models.candidate.candidate_events import CandidateEvent
 from scaffold.models.candidate.candidate_preferences import CandidatePreference
 from scaffold.models.candidate.candidate_target_profile_entities import CandidateTargetProfileEntity
 from scaffold.models.candidate.candidate_target_profile_keywords import CandidateTargetProfileKeyword
 from scaffold.models.candidate.candidate_target_profiles import CandidateTargetProfile
+from scaffold.models.candidate.candidate_workflow_answers import CandidateWorkflowAnswer
+from scaffold.models.candidate.candidate_workflow_sessions import CandidateWorkflowSession
+from scaffold.models.candidate.candidate_workflow_steps import CandidateWorkflowStep
 from scaffold.models.candidate.candidates import Candidate
 from scaffold.models.company.companies import Company
 from scaffold.models.company.company_domains import CompanyDomain
@@ -38,7 +44,11 @@ from scaffold.models.job.job_professional_entities import JobProfessionalEntity
 from scaffold.models.job.job_raw_payloads import JobRawPayload
 from scaffold.models.job.job_routing_keywords import JobRoutingKeyword
 from scaffold.models.job.jobs import Job
+from scaffold.models.onboard.onboard_flow_steps import OnboardFlowStep
+from scaffold.models.onboard.onboard_flows import OnboardFlow
 from scaffold.models.onboard.onboard_steps import OnboardStep
+from scaffold.models.onboard.profile_onboard_flows import ProfileOnboardFlow
+from scaffold.models.onboard.profile_onboard_step_states import ProfileOnboardStepState
 from scaffold.models.resume.cover_letter_versions import CoverLetterVersion
 from scaffold.models.resume.resume_build_answers import ResumeBuildAnswer
 from scaffold.models.resume.resume_build_sessions import ResumeBuildSession
@@ -94,6 +104,9 @@ __all__ = [
     "BillingPayment",
     "BillingPlan",
     "BillingSubscription",
+    "BillingWorkflowAnswer",
+    "BillingWorkflowSession",
+    "BillingWorkflowStep",
     "Candidate",
     "CandidateApplicationData",
     "CandidateEvent",
@@ -101,6 +114,9 @@ __all__ = [
     "CandidateTargetProfile",
     "CandidateTargetProfileEntity",
     "CandidateTargetProfileKeyword",
+    "CandidateWorkflowAnswer",
+    "CandidateWorkflowSession",
+    "CandidateWorkflowStep",
     "Company",
     "CompanyDomain",
     "CompanyEvent",
@@ -119,7 +135,11 @@ __all__ = [
     "JobProfessionalEntity",
     "JobRawPayload",
     "JobRoutingKeyword",
+    "OnboardFlow",
+    "OnboardFlowStep",
     "OnboardStep",
+    "ProfileOnboardFlow",
+    "ProfileOnboardStepState",
     "ProfessionalCollection",
     "ProfessionalCollectionMembership",
     "ProfessionalEntity",

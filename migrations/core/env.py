@@ -20,18 +20,30 @@ target_metadata = CoreBase.metadata
 if alembic_cfg.config_file_name is not None:
     fileConfig(alembic_cfg.config_file_name)
 
-from scaffold.config import get_settings  # noqa: F401, E402
-
-settings = get_settings()
-
-
 def include_object(object, name, type_, reflected, compare_to):
     if type_ == "table":
         return name in target_metadata.tables
     return True
 
 
+def run_migrations_offline() -> None:
+    context.configure(
+        url="mysql://offline",
+        target_metadata=target_metadata,
+        include_object=include_object,
+        compare_type=True,
+        compare_server_default=True,
+        literal_binds=True,
+        dialect_name="mysql",
+    )
+    with context.begin_transaction():
+        context.run_migrations()
+
+
 def run_migrations() -> None:
+    from scaffold.config import get_settings
+
+    settings = get_settings()
     url = str(settings.database_url_sync)
     connectable = create_engine(url, poolclass=pool.NullPool)
     with connectable.connect() as connection:
@@ -46,4 +58,7 @@ def run_migrations() -> None:
             context.run_migrations()
 
 
-run_migrations()
+if context.is_offline_mode():
+    run_migrations_offline()
+else:
+    run_migrations()
