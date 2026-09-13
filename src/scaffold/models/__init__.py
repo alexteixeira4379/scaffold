@@ -46,7 +46,6 @@ from scaffold.models.job.job_routing_keywords import JobRoutingKeyword
 from scaffold.models.job.jobs import Job
 from scaffold.models.onboard.onboard_flow_steps import OnboardFlowStep
 from scaffold.models.onboard.onboard_flows import OnboardFlow
-from scaffold.models.onboard.onboard_steps import OnboardStep
 from scaffold.models.onboard.profile_onboard_flows import ProfileOnboardFlow
 from scaffold.models.onboard.profile_onboard_step_states import ProfileOnboardStepState
 from scaffold.models.resume.cover_letter_versions import CoverLetterVersion
@@ -137,7 +136,6 @@ __all__ = [
     "JobRoutingKeyword",
     "OnboardFlow",
     "OnboardFlowStep",
-    "OnboardStep",
     "ProfileOnboardFlow",
     "ProfileOnboardStepState",
     "ProfessionalCollection",

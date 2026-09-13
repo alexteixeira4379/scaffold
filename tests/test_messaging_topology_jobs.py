@@ -20,7 +20,7 @@ def _exchange_names(topology) -> set[str]:
     return {exchange.name for exchange in topology.exchanges}
 
 
-def test_all_nine_job_events_have_queue_and_dlq() -> None:
+def test_all_job_events_have_queue_and_dlq() -> None:
     queue_names = _queue_names(jobs_topology)
     for event in JobEventName:
         assert queue_name_for(event) in queue_names
@@ -84,8 +84,8 @@ def test_get_full_topology_includes_all_job_events_and_excludes_legacy() -> None
     assert not (_LEGACY_NAMES & _exchange_names(topology))
 
 
-def test_jobs_topology_has_exactly_nine_main_queues() -> None:
+def test_jobs_topology_has_exactly_ten_main_queues() -> None:
     main_queues = [
         queue.name for queue in jobs_topology.queues if not queue.name.endswith(".dlq")
     ]
-    assert len(main_queues) == 9
+    assert len(main_queues) == 10

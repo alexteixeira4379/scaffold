@@ -18,7 +18,6 @@ class BillingCustomer(CoreBase):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     candidate_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("candidates.id"), nullable=False)
     external_customer_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    pending_plan_code: Mapped[str | None] = mapped_column(String(128), nullable=True)
     email: Mapped[str | None] = mapped_column(Text, nullable=True)
     name: Mapped[str | None] = mapped_column(Text, nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")

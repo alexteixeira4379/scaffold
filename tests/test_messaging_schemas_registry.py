@@ -28,8 +28,11 @@ CREATED_EXAMPLE = {
 }
 
 
-def test_registry_maps_all_nine_events() -> None:
-    assert set(JOB_EVENT_PAYLOADS) == set(JobEventName)
+def test_registry_maps_all_events_with_payload_contracts() -> None:
+    # company.enriched has no payload schema yet, so it is intentionally
+    # absent from the registry.
+    expected = set(JobEventName) - {JobEventName.COMPANY_ENRICHED}
+    assert set(JOB_EVENT_PAYLOADS) == expected
 
 
 def test_serialize_job_event_returns_json_safe_dict() -> None:

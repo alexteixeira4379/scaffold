@@ -132,12 +132,13 @@ class TestFindBestOption:
 
 
 class TestMatcherSkip:
-    def test_current_value_returns_skip(self, matcher: CommonMatcher):
+    def test_current_value_does_not_force_skip(self, matcher: CommonMatcher):
+        """Pre-filled current_value is not trusted; matcher answers from candidate data."""
         q = Question(id="q1", question="Your email?", current_value="already@filled.com")
         ans = matcher.match(q)
         assert ans is not None
-        assert ans.type == AnswerType.SKIP
-        assert ans.value == "already@filled.com"
+        assert ans.type == AnswerType.TEXT
+        assert ans.value == "joao@example.com"
 
 
 class TestMatcherEmail:

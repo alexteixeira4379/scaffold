@@ -8,6 +8,7 @@ from scaffold.messaging.events import (
 
 _EXPECTED_EVENT_VALUES = {
     "job.captured",
+    "company.enriched",
     "job.ingestion.linkedin.request",
     "job.ingestion.common.request",
     "job.ingested",
@@ -19,8 +20,8 @@ _EXPECTED_EVENT_VALUES = {
 }
 
 
-def test_job_event_name_has_nine_members() -> None:
-    assert len(JobEventName) == 9
+def test_job_event_name_has_ten_members() -> None:
+    assert len(JobEventName) == 10
     assert {event.value for event in JobEventName} == _EXPECTED_EVENT_VALUES
 
 
@@ -46,7 +47,10 @@ def test_job_created_queue_name_preserved() -> None:
 
 
 def test_idempotency_keys_defined_for_all_events() -> None:
-    assert set(JOB_EVENT_IDEMPOTENCY_KEYS) == set(JobEventName)
+    # company.enriched has no payload contract yet, so it is intentionally
+    # absent from the idempotency-key registry.
+    expected = set(JobEventName) - {JobEventName.COMPANY_ENRICHED}
+    assert set(JOB_EVENT_IDEMPOTENCY_KEYS) == expected
     for keys in JOB_EVENT_IDEMPOTENCY_KEYS.values():
         assert isinstance(keys, tuple)
         assert len(keys) > 0

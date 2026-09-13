@@ -152,11 +152,16 @@ class TestEngineAnswer:
         assert ans.value == "N/A"
         assert ans.source == "default"
 
-    async def test_skip_already_filled(self, engine):
-        q = Question(id="q1", question="Name?", current_value="Already There")
+    async def test_prefilled_value_is_overwritten_with_database_answer(self, engine):
+        """Pre-filled form values are not trusted; the engine answers from candidate data."""
+        q = Question(
+            id="q1",
+            question="What is your email address?",
+            current_value="wrong@prefill.com",
+        )
         ans = await engine.answer(q)
-        assert ans.type == AnswerType.SKIP
-        assert ans.value == "Already There"
+        assert ans.type == AnswerType.TEXT
+        assert ans.value == "ana@test.com"
 
 
 class TestEngineAnswerBatch:

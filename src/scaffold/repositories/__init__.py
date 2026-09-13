@@ -108,12 +108,10 @@ from scaffold.repositories.match_repositories import (
 from scaffold.repositories.onboard_repositories import (
     OnboardFlowRepository,
     OnboardFlowStepRepository,
-    OnboardStepRepository,
     ProfileOnboardFlowRepository,
     ProfileOnboardStepStateRepository,
     onboard_flow_repository,
     onboard_flow_step_repository,
-    onboard_step_repository,
     profile_onboard_flow_repository,
     profile_onboard_step_state_repository,
 )
@@ -220,7 +218,6 @@ __all__ = [
     "JobRoutingKeywordRepository",
     "OnboardFlowRepository",
     "OnboardFlowStepRepository",
-    "OnboardStepRepository",
     "ProfileOnboardFlowRepository",
     "ProfileOnboardStepStateRepository",
     "ProfessionalCollectionMembershipRepository",
@@ -291,7 +288,6 @@ __all__ = [
     "job_routing_keyword_repository",
     "onboard_flow_repository",
     "onboard_flow_step_repository",
-    "onboard_step_repository",
     "profile_onboard_flow_repository",
     "profile_onboard_step_state_repository",
     "professional_collection_membership_repository",
