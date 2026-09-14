@@ -43,12 +43,14 @@ STEPS: list[dict] = [
             "question": "Para começar, me diga seu nome completo.",
             "question_options": None,
             "question_type": "wk",
-            "answer_format": "text",
-            "answer_format_output": {
-                "type": "string",
-                "description": "Nome completo do candidato.",
-            },
-            "agent_prompt": "Analise a resposta do usuário e extraia o nome completo.",
+            # Deterministic, no LLM: AnswerProcessor._process_generic rejects
+            # empty/too-short/email-shaped text by regex/length check alone
+            # (candidate-api's answer_processor.py). answer_format_output/
+            # agent_prompt are intentionally empty — this answer_format never
+            # reaches the LLM extraction path that reads them.
+            "answer_format": "free_text_name",
+            "answer_format_output": None,
+            "agent_prompt": "",
         },
     },
     {
@@ -61,17 +63,15 @@ STEPS: list[dict] = [
             "question": "Agora me informe seu e-mail.",
             "question_options": None,
             "question_type": "wk",
-            "answer_format": "text",
-            "answer_format_output": {
-                "type": "object",
-                "properties": {
-                    "email": {"type": ["string", "null"], "format": "email"},
-                },
-            },
-            "agent_prompt": (
-                "Analise a resposta do usuário e extraia o e-mail. LinkedIn e outros dados de "
-                "contato são coletados depois, pelo dashboard — não pergunte por eles aqui."
-            ),
+            # Deterministic, no LLM: AnswerProcessor._process_generic extracts
+            # the e-mail by regex and rejects outright when none is found —
+            # LinkedIn and other contact data are collected later, through
+            # the dashboard, not here. answer_format_output/agent_prompt are
+            # intentionally empty — this answer_format never reaches the LLM
+            # extraction path that reads them.
+            "answer_format": "required_email",
+            "answer_format_output": None,
+            "agent_prompt": "",
         },
     },
     # ── workflow: search_goal ───────────────────────────────────────────────
