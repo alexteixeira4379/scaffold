@@ -58,7 +58,7 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.TEXT,
         "is_required": True,
         "options": {
-            "question": "Agora me informe seu e-mail e, se tiver, o link do seu LinkedIn.",
+            "question": "Agora me informe seu e-mail.",
             "question_options": None,
             "question_type": "wk",
             "answer_format": "text",
@@ -66,12 +66,11 @@ STEPS: list[dict] = [
                 "type": "object",
                 "properties": {
                     "email": {"type": ["string", "null"], "format": "email"},
-                    "linkedin_url": {"type": ["string", "null"]},
                 },
             },
             "agent_prompt": (
-                "Analise a resposta do usuário e extraia o e-mail e a URL do LinkedIn. "
-                "Se algum dos dois não for informado, retorne null no campo correspondente."
+                "Analise a resposta do usuário e extraia o e-mail. LinkedIn e outros dados de "
+                "contato são coletados depois, pelo dashboard — não pergunte por eles aqui."
             ),
         },
     },
