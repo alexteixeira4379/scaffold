@@ -49,7 +49,11 @@ STEPS: list[dict] = [
                 "type": "string",
                 "description": "Código do plano escolhido (plan_code).",
             },
-            "agent_prompt": "Analise a resposta do usuário e identifique o plano escolhido.",
+            # No agent_prompt: matching is a deterministic accent/case-insensitive
+            # match against the live plan catalog (answer_processor.py's
+            # AnswerProcessor._process_select_plan, ported from
+            # conversation-worker's plan_selection.resolve_plan_code) — never an
+            # LLM call. Do not add an agent_prompt back here; nothing reads it.
         },
     },
     {
