@@ -73,10 +73,10 @@ class Settings(BaseSettings):
     ai_provider: AIProvider = AIProvider.GROQ
     groq_api_key: str | None = None
     groq_base_url: str = "https://api.groq.com/openai/v1"
-    groq_model_basic: str = "llama-3.1-8b-instant"
-    groq_model_intermediate: str = "llama-3.1-8b-instant"
-    groq_model_complex: str = "llama-3.1-8b-instant"
-    groq_model_thinking: str = "llama-3.1-8b-instant"
+    groq_model_basic: str = "openai/gpt-oss-20b"
+    groq_model_intermediate: str = "openai/gpt-oss-20b"
+    groq_model_complex: str = "openai/gpt-oss-20b"
+    groq_model_thinking: str = "openai/gpt-oss-20b"
     groq_timeout_s: float = 120.0
 
     def model_post_init(self, __context: object) -> None:
