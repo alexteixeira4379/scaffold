@@ -95,26 +95,8 @@ STEPS: list[dict] = [
     },
     {
         "workflow_key": "search_goal",
-        "step_key": "country",
-        "step_order": 20,
-        "input_type": ResumeStepInputType.TEXT,
-        "is_required": True,
-        "options": {
-            "question": "Em qual país você quer trabalhar?",
-            "question_options": None,
-            "question_type": "wk",
-            "answer_format": "text",
-            "answer_format_output": {
-                "type": "string",
-                "description": "País desejado (normalizado para código ISO de 2 letras quando possível).",
-            },
-            "agent_prompt": "Analise a resposta do usuário e extraia o país desejado.",
-        },
-    },
-    {
-        "workflow_key": "search_goal",
         "step_key": "work_model",
-        "step_order": 30,
+        "step_order": 20,
         "input_type": ResumeStepInputType.SELECT,
         "is_required": True,
         "options": {
@@ -129,40 +111,18 @@ STEPS: list[dict] = [
             "agent_prompt": "Analise a resposta do usuário e identifique o modelo de trabalho preferido.",
         },
     },
-    {
-        "workflow_key": "search_goal",
-        "step_key": "seniority",
-        "step_order": 40,
-        "input_type": ResumeStepInputType.SELECT,
-        "is_required": True,
-        "options": {
-            "question": "Qual seu nível de senioridade?",
-            "question_options": ["Júnior", "Pleno", "Sênior", "Especialista/Líder"],
-            "question_type": "wk",
-            "answer_format": "option",
-            "answer_format_output": {
-                "type": "string",
-                "enum": ["Júnior", "Pleno", "Sênior", "Especialista/Líder"],
-            },
-            "agent_prompt": "Analise a resposta do usuário e identifique o nível de senioridade.",
-        },
-    },
-    {
-        "workflow_key": "search_goal",
-        "step_key": "confirm_goal",
-        "step_order": 50,
-        "input_type": ResumeStepInputType.BOOLEAN,
-        "is_required": True,
-        "options": {
-            "question": "Posso confirmar esse objetivo de busca e salvar no seu perfil?",
-            "question_options": ["Sim", "Não"],
-            "question_type": "wk",
-            "answer_format": "option",
-            "answer_format_output": {"type": "string", "enum": ["Sim", "Não"]},
-            "agent_prompt": "Analise a resposta e determine se o candidato confirmou o objetivo de busca.",
-            "action": "upsert_target_profile",
-        },
-    },
+    # NOTE: steps ``country`` (was order 20), ``seniority`` (was order 40) and
+    # ``confirm_goal`` (was order 50) were removed in the conversational
+    # onboarding redesign (jobito-architecture onboarding plan §A):
+    #   - country: defaulted to "BR" at completion (Brazil-only market today);
+    #   - seniority: now inferred by resume-api from the candidate's account;
+    #   - confirm_goal: redundant confirmation removed. Its
+    #     ``action: upsert_target_profile`` did NOT drive the upsert — the
+    #     upsert runs unconditionally in candidate-api's
+    #     ``workflow_completion.complete_search_goal`` via the
+    #     ``on_workflow_completed`` hook that ``step_resolver.resolve_next_step``
+    #     fires when the session reaches its last step. No action step needed.
+    # Result: search_goal is now just role + work_model (two questions).
 ]
 
 
