@@ -82,7 +82,7 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.TEXT,
         "is_required": True,
         "options": {
-            "question": "Qual cargo ou função você está buscando?",
+            "question": "Qual cargo você quer encontrar agora?",
             "question_options": None,
             "question_type": "wk",
             "answer_format": "text",
