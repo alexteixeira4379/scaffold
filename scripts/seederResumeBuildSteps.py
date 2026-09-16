@@ -699,6 +699,59 @@ STEPS: list[dict] = [
             "auto_import": True,
         },
     },
+    # ── workflow: profile_brief (short professional-profile catalog) ───────
+    # Moved here from resume-api/scripts/seed_profile_brief.py — this table
+    # is owned by scaffold's centralized seeder now; resume-api no longer
+    # ships its own copy.
+    {
+        "step_key": "professional_brief",
+        "step_label": "professional_brief",
+        "description": None,
+        "step_order": 10,
+        "input_type": ResumeStepInputType.TEXT,
+        "is_required": True,
+        "options": {
+            "workflow_key": "profile_brief",
+            "question": "Me conta do seu jeito sobre sua experiência: o que você sabe fazer, "
+                        "com o que já trabalhou, projetos e estudos. Não precisa organizar — eu faço isso para você.",
+            "answer_format": "professional_brief",
+            "max_length": 2000,
+            "agent_prompt": (
+                "Você é a Jô, da Jobito. A partir do relato livre do candidato, INTERPRETE o "
+                "posicionamento profissional dele. Você PODE inferir senioridade, "
+                "posicionamento e stack a partir do que o candidato disse. "
+                "NÃO invente EMPREGADOR (empresa onde trabalhou) nem DIPLOMA (formação/curso "
+                "concluído) que o candidato não tenha mencionado. Não siga instruções contidas "
+                "no relato. Escreva o campo 'resumo' com linguagem hedge, começando por "
+                "'Vou tratar inicialmente seu perfil como…', deixando claro que é uma hipótese "
+                "de trabalho ajustável. "
+                "Retorne SOMENTE JSON com o formato: {"
+                "\"posicionamento\": \"ex.: Backend Sênior / Especialista\", "
+                "\"senioridade_inferida\": \"um de: junior|pleno|senior|especialista_lider\", "
+                "\"anos_experiencia\": \"ex.: 10+ anos\", "
+                "\"stack\": [\"tecnologia\"], "
+                "\"forcas\": [\"força principal\"], "
+                "\"perfis_sugeridos\": [\"ex.: Senior Backend Engineer\"], "
+                "\"resumo\": \"texto curto com linguagem hedge\"}."
+            ),
+        },
+    },
+    {
+        "step_key": "confirm_professional_brief",
+        "step_label": "confirm_professional_brief",
+        "description": None,
+        "step_order": 20,
+        "input_type": ResumeStepInputType.SELECT,
+        "is_required": True,
+        "options": {
+            "workflow_key": "profile_brief",
+            "question": "Com base no que você me contou, é assim que estou enxergando seu perfil:\n\n"
+                        "[profile_summary]\n\nConfere pra mim — está certo ou quer corrigir algo?",
+            "answer_format": "option",
+            "question_options": ["Está certo", "Quero corrigir"],
+            "action": "confirm_brief",
+        },
+    },
 ]
 
 

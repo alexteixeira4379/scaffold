@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Jobito — Suas oportunidades da semana</title>
+<style>
+:root{--bg:#0d1715;--panel:#16221f;--green:#acffb8;--lilac:#cdbdff;--text:#f7f8f3;--muted:#a7b7ae;--line:#304139}
+*{box-sizing:border-box}body{margin:0;background:#dfe4df;font-family:Arial,Helvetica,sans-serif;color:var(--text)}
+.card{width:1080px;min-height:1350px;padding:52px 62px 30px;background:var(--bg);position:relative;overflow:hidden;margin:auto}
+.top{display:flex;align-items:center;justify-content:space-between}.brand{font-size:40px;font-weight:800;letter-spacing:-2px}.mark{display:inline-flex;align-items:center;justify-content:center;background:var(--green);width:30px;height:30px;border-radius:10px;color:var(--bg);font-size:24px;margin-right:10px;vertical-align:3px;letter-spacing:-3px;padding-right:3px}.edition{font-size:18px;letter-spacing:2px;color:var(--muted);text-transform:uppercase}.intro{font-size:24px;color:var(--lilac);margin:39px 0 14px}h1{font-size:60px;line-height:1.03;letter-spacing:-2.6px;font-weight:600;margin:0;max-width:850px}.hero{display:flex;align-items:center;gap:30px;margin:22px 0 21px}.total{font-size:168px;font-weight:700;line-height:.95;letter-spacing:-10px;color:var(--green)}.hero-copy{font-size:32px;line-height:1.14;max-width:450px;letter-spacing:-.7px}.hero-copy small{display:block;margin-top:12px;font-size:21px;color:var(--muted);letter-spacing:0}.profile{font-size:21px;color:var(--muted);margin:0 0 27px}.stats{display:flex;gap:16px}.stat{flex:1}.stat{padding:21px 24px;border:1px solid var(--line);border-radius:18px;background:var(--panel);display:flex;gap:18px;align-items:center}.stat strong{font-size:48px;letter-spacing:-2px;color:var(--green)}.stat span{font-size:21px;line-height:1.25}.stat.urgent strong{color:var(--lilac)}.stat.urgent{background:#24232f;border-color:#40394c}.section-label{display:flex;justify-content:space-between;align-items:center;margin:31px 0 14px;font-size:18px;letter-spacing:1.8px;text-transform:uppercase;color:var(--muted)}.section-label span:last-child{font-size:17px;letter-spacing:0;text-transform:none}.jobs{border-top:1px solid var(--line)}.job{padding:19px 0 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);gap:16px}.job h2{font-size:28px;letter-spacing:-.6px;margin:0 0 8px;font-weight:600}.job p{font-size:19px;color:var(--muted);margin:0}.signal{text-align:right;min-width:230px}.signal b{display:block;font-size:19px;color:var(--green);font-weight:500}.signal small{display:block;font-size:18px;color:var(--muted);margin-top:8px}.signal .deadline{color:var(--lilac)}.remaining{font-size:20px;color:var(--muted);margin:17px 0 24px}.remaining b{color:var(--text);font-weight:500}.action{padding:26px 28px;border-radius:20px;background:var(--green);color:#102319;display:flex;justify-content:space-between;gap:28px;align-items:center}.action h3{font-size:29px;line-height:1.12;letter-spacing:-.8px;margin:0 0 9px;max-width:520px}.action p{font-size:19px;line-height:1.35;margin:0;max-width:530px}.cta{white-space:nowrap;border-radius:12px;background:#102319;color:var(--green);padding:20px 21px;font-size:21px;font-weight:600;text-decoration:none}.footer{display:flex;justify-content:space-between;gap:20px;color:var(--muted);font-size:16px;line-height:1.35;margin-top:21px}
+@media(max-width:1080px){body{background:var(--bg)}.card{margin:0}}
+</style>
+</head>
+<body>
+<!--
+TEMPLATE ESTATICO PARA CONVERSAO EM IMAGEM. Sem JavaScript ou recursos externos.
+Placeholders sao substituidos pelo backend via string.Template, HTML-escapado.
+Largura: 1080px. Altura minima: 1350px; capture a altura completa do card.
+-->
+<main class="card">
+ <div class="top"><div class="brand"><span class="mark">»</span>jobito</div><div class="edition">Seu radar de oportunidades</div></div>
+ <p class="intro" id="intro">$first_name, olha o que a Jô encontrou.</p><h1 id="headline">Sua próxima vaga pode estar entre estas.</h1>
+ <div class="hero"><div class="total" id="total">$total_vagas</div><div class="hero-copy">vagas para você se<br>candidatar nesta semana<small id="period">$periodo_semana</small></div></div>
+ <p class="profile" id="profile">$cargo · $senioridade · $modelo_trabalho · $pais</p>
+ <div class="stats"><div class="stat" id="new-stat"><strong id="new-count">$vagas_novas_48h</strong><span>publicadas nas<br>últimas 48 horas</span></div><div class="stat urgent" id="closing-stat"><strong id="closing-count">$vagas_encerrando_semana</strong><span>com inscrições até<br>o fim desta semana</span></div></div>
+ <div class="section-label"><span>Vale começar por estas</span><span>Selecionadas para o seu perfil</span></div>
+ <div class="jobs">
+  <article class="job">
+    <div>
+      <h2>$vaga_1_titulo</h2>
+      <p>$vaga_1_empresa · $vaga_1_modelo · $vaga_1_local</p>
+    </div>
+    <div class="signal">
+      <b>$vaga_1_aderencias</b>
+      <small>$vaga_1_destaque</small>
+    </div>
+  </article>
+  <article class="job">
+    <div>
+      <h2>$vaga_2_titulo</h2>
+      <p>$vaga_2_empresa · $vaga_2_modelo · $vaga_2_local</p>
+    </div>
+    <div class="signal">
+      <b>$vaga_2_aderencias</b>
+      <small>$vaga_2_destaque</small>
+    </div>
+  </article>
+  <article class="job">
+    <div>
+      <h2>$vaga_3_titulo</h2>
+      <p>$vaga_3_empresa · $vaga_3_modelo · $vaga_3_local</p>
+    </div>
+    <div class="signal">
+      <b>$vaga_3_aderencias</b>
+      <small>$vaga_3_destaque</small>
+    </div>
+  </article>
+ </div><p class="remaining" id="remaining">E mais $vagas_restantes oportunidades selecionadas para a sua busca.</p>
+ <div class="action"><div><h3 id="action-title">Vaga boa merece candidatura.<br>Não só um "salvei para depois".</h3><p id="action-copy">Ative a Jobito para acompanhar oportunidades que combinam com você.</p></div><span class="cta">Ativar minha busca ↗</span></div>
+ <div class="footer"><span id="checked">Vagas verificadas em $data_verificacao</span><span>Encontradas pela Jô · Feitas para o seu momento.</span></div>
+</main>
+</body>
+</html>
