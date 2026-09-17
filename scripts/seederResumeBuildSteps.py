@@ -745,10 +745,16 @@ STEPS: list[dict] = [
         "is_required": True,
         "options": {
             "workflow_key": "profile_brief",
-            "question": "Com base no que você me contou, é assim que estou enxergando seu perfil:\n\n"
-                        "[profile_summary]\n\nConfere pra mim — está certo ou quer corrigir algo?",
+            "question": "*Perfil identificado*\n\n"
+                        "[profile_summary]\n\n"
+                        "✓ Perfil profissional registrado\n"
+                        "✓ Critérios de busca preparados\n\n"
+                        "_A próxima etapa já é trabalho meu._\n\n"
+                        "Vou acionar meus agentes de IA para buscar oportunidades na internet, "
+                        "analisar as vagas encontradas e separar as que mais combinam com você.\n\n"
+                        "Coloco eles pra trabalhar?",
             "answer_format": "option",
-            "question_options": ["Está certo", "Quero corrigir"],
+            "question_options": ["Começar minha busca", "Quero corrigir"],
             "action": "confirm_brief",
         },
     },
