@@ -171,16 +171,31 @@ def _compose_greeting() -> dict:
     }
 
 
+# step_keys that used to be part of onboard_steps() and must be explicitly
+# deactivated in the DB when removed — get_or_create_onboard_step() only
+# upserts what's currently in the list below, it never deactivates a row
+# whose step_key simply stops appearing (same gotcha bitten us with the
+# legacy country/seniority/confirm_goal candidate_workflow_steps rows: an
+# upsert-only seeder leaves orphaned steps ``active=True`` in the DB forever
+# unless something explicitly turns them off). See run_onboard_seed().
+REMOVED_ONBOARD_STEP_KEYS: frozenset[str] = frozenset({
+    # Folded into base_profile's own opening line ("já coloquei meus agentes
+    # pra trabalhar... vou aproveitar pra confirmar uns dados") instead of a
+    # separate standalone bubble — see seederCandidateWorkflowSteps.py.
+    "suspense_1",
+})
+
+
 def onboard_steps() -> list[tuple[str, Kind, dict]]:
     return [
-        ("welcome", Kind.INFO, {"text": "Bem-vindo ao Jobito 🤖, é um prazer conhecê-lo, eu sou a Jô."}),
-        ("welcome_intent", Kind.INFO, {"text": "Vou entender seu perfil e começar a filtrar o que realmente "
-            "faz sentido pra sua carreira.\nMe conta do seu jeito. Eu cuido do resto."}),
-        ("base_profile", Kind.API_WORKFLOW, {"domain": "candidate", "workflow_key": "base_profile", "stage": "Dados para sua conta"}),
+        ("welcome", Kind.INFO, {"text": "Se procurar vaga já virou um segundo emprego, deixa essa parte "
+            "comigo. 👀"}),
+        ("welcome_intent", Kind.INFO, {"text": "Eu sou a Jô, da Jobito. Minha função é entender seu momento "
+            "profissional e colocar tecnologia pra trabalhar na sua busca — enquanto você foca no que "
+            "realmente importa."}),
         ("search_goal", Kind.API_WORKFLOW, {"domain": "candidate", "workflow_key": "search_goal", "stage": "1/3 · Sua busca"}),
         ("profile_brief", Kind.API_WORKFLOW, {"domain": "resume", "workflow_key": "profile_brief", "stage": "2/3 · Seu perfil inicial"}),
-        ("suspense_1", Kind.INFO, {"text": "Certo, deixa eu já fazer uma procura para ver o que encontro "
-            "no seu perfil... 1 minuto."}),
+        ("base_profile", Kind.API_WORKFLOW, {"domain": "candidate", "workflow_key": "base_profile", "stage": "Dados para sua conta"}),
         ("suspense_2", Kind.ACTION, _compose_greeting()),
         ("activation_intro", Kind.INFO, {"text": "Já tenho informação suficiente para começar bem. "
             "Agora é só escolher como você quer que a Jobito trabalhe na sua busca."}),
@@ -261,6 +276,14 @@ async def run_onboard_seed() -> None:
         flow = await get_or_create_flow(session)
         for order, (key, kind, config) in enumerate(onboard_steps(), 1):
             await get_or_create_onboard_step(session, flow.id, order * 10, key, kind, config)
+        for removed_key in REMOVED_ONBOARD_STEP_KEYS:
+            row = await session.scalar(
+                select(OnboardFlowStep).where(
+                    OnboardFlowStep.flow_id == flow.id, OnboardFlowStep.step_key == removed_key
+                )
+            )
+            if row is not None:
+                row.active = False
         skipped = await purge_stale_flows(session, flow.id)
         await session.commit()
         version = flow.version

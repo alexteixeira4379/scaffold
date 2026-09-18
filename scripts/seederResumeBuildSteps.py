@@ -712,10 +712,20 @@ STEPS: list[dict] = [
         "is_required": True,
         "options": {
             "workflow_key": "profile_brief",
-            "question": "Me conta do seu jeito sobre sua experiência: o que você sabe fazer, "
-                        "com o que já trabalhou, projetos e estudos. Não precisa organizar — eu faço isso para você.",
+            "question": "Agora quero te conhecer um pouco melhor.\n\n"
+                        "Se você já tiver seu currículo, pode me mandar por aqui que isso agiliza bastante.\n\n"
+                        "Se não tiver, sem problema — pode me mandar um áudio ou simplesmente escrever "
+                        "um pouco sobre você.\n\nEu organizo tudo daqui.",
             "answer_format": "professional_brief",
-            "max_length": 2000,
+            # Was 2000: too tight now that this step accepts an uploaded résumé
+            # (PDF text extraction, up to conversation-worker's MediaSettings.
+            # max_text_chars=50_000) or a transcribed audio note, not just typed
+            # text — extract_brief() rejects anything over this outright rather
+            # than truncating, so a real résumé's extracted text would bounce
+            # with INVALID_FORMAT. 8000 chars covers a realistic 1-2 page résumé
+            # (~1500-2000 tokens) comfortably within the extraction call's 12s
+            # budget without accepting arbitrarily large uploads.
+            "max_length": 8000,
             "agent_prompt": (
                 "Você é a Jô, da Jobito. A partir do relato livre do candidato, INTERPRETE o "
                 "posicionamento profissional dele. Você PODE inferir senioridade, "

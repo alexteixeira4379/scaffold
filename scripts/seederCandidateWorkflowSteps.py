@@ -40,7 +40,9 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.TEXT,
         "is_required": True,
         "options": {
-            "question": "Para começar, me diga seu nome completo.",
+            "question": "Perfeito. Já coloquei meus agentes para trabalhar no seu perfil.\n\n"
+                        "Enquanto eles pesquisam e analisam as oportunidades, vou aproveitar para "
+                        "confirmar alguns dados por aqui.\n\nQual seu nome completo?",
             "question_options": None,
             "question_type": "wk",
             # Deterministic, no LLM: AnswerProcessor._process_generic rejects
@@ -60,7 +62,7 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.TEXT,
         "is_required": True,
         "options": {
-            "question": "Agora me informe seu e-mail.",
+            "question": "Qual seu melhor e-mail?",
             "question_options": None,
             "question_type": "wk",
             # Deterministic, no LLM: AnswerProcessor._process_generic extracts
