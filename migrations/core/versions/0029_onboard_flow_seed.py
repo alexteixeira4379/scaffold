@@ -85,9 +85,15 @@ def upgrade() -> None:
             sa.select(_FLOWS.c.id).where(_FLOWS.c.flow_key == flow_key, _FLOWS.c.version == 1)
         ).scalar()
         if flow_id is None:
+            # .inserted_primary_key relies on the Table's declared primary key
+            # to know which column to report back; the lightweight sa.table()
+            # proxy here has no such metadata, so it comes back empty on a
+            # truly fresh DB (IndexError). .lastrowid reads MySQL's
+            # LAST_INSERT_ID() directly off the cursor instead — works
+            # regardless of what the proxy declares.
             flow_id = bind.execute(
                 _FLOWS.insert().values(flow_key=flow_key, subject_type="candidate", version=1, active=True)
-            ).inserted_primary_key[0]
+            ).lastrowid
         else:
             bind.execute(_FLOWS.update().where(_FLOWS.c.id == flow_id).values(active=True))
 
