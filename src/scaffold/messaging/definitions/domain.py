@@ -17,6 +17,7 @@ SUBSCRIPTIONS = {
         "resume.builder.completed",
     ),
     "billing.workflow": ("payment.confirmed",),
+    "conversation.lifecycle": ("payment.confirmed",),
     "matching.lifecycle": (
         "resume.available",
         "linkedin.session.available",
