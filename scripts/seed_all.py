@@ -75,9 +75,11 @@ def _activation_card() -> dict:
             "next_step": "Próximo passo: completar seu currículo para eu encontrar as vagas certas.",
         },
         "presentation": {
-            "text_template": "Tudo certo. Agora a Jô vai acompanhar sua busca de perto.\n\n$summary\n\n"
-                             "Vamos completar seu currículo para eu encontrar as vagas certas: você pode "
-                             "enviar o documento atual ou construir uma versão comigo.",
+            "text_template": "*Pagamento confirmado. Sua Jobito está ativa!* ✅\n\n$summary\n\n"
+                             "*Próximo passo: completar seu currículo.*\n"
+                             "- Envie o documento que você já tem.\n"
+                             "- Ou construa uma versão comigo, pela conversa.\n\n"
+                             "_Eu organizo as informações; você confere._",
             "template_html": (_TEMPLATES / "jobito_activated.html").read_text(),
         },
     }
@@ -113,7 +115,8 @@ def _compose_greeting() -> dict:
             "profile_summary": {"step": "profile_brief", "path": "outcome.data.summary"},
             "profile_position": {"step": "profile_brief", "path": "outcome.data.posicionamento"},
         },
-        "fallback_text": "Olha o que eu encontrei! 🤩",
+        "fallback_text": "*Seu perfil já tem uma direção.*\n\n"
+                         "_Vou usar o que você compartilhou como base para sua busca._",
         "generation": {
             "prompt": "Você é a Jô, da Jobito. Os dados abaixo (cargo, senioridade, modelo de "
                       "trabalho, país, resumo e posicionamento profissional) são o perfil REAL do "
@@ -163,7 +166,11 @@ def _compose_greeting() -> dict:
             "timeout_s": 20,
         },
         "presentation": {
-            "text_template": "$first_name, olha o que eu encontrei! 🤩",
+            "text_template": "*$first_name, seu perfil já tem uma direção.*\n\n"
+                             "- *Cargo:* $cargo\n"
+                             "- *Modelo:* $modelo_trabalho\n"
+                             "- *País:* $pais\n\n"
+                             "_Esses são os critérios que você definiu para sua busca._",
             "template_html": (_TEMPLATES / "job_match.html").read_text(),
             "height": 1350,
         },
@@ -187,17 +194,21 @@ REMOVED_ONBOARD_STEP_KEYS: frozenset[str] = frozenset({
 
 def onboard_steps() -> list[tuple[str, Kind, dict]]:
     return [
-        ("welcome", Kind.INFO, {"text": "Se procurar vaga já virou um segundo emprego, deixa essa parte "
-            "comigo. 👀"}),
-        ("welcome_intent", Kind.INFO, {"text": "Eu sou a Jô, da Jobito. Minha função é entender seu momento "
-            "profissional e colocar tecnologia pra trabalhar na sua busca — enquanto você foca no que "
-            "realmente importa."}),
+        ("welcome", Kind.INFO, {"text": "Procurar vaga virou um segundo emprego? 👀\n\n"
+            "Vamos trocar ~tentativa e erro~ por uma *busca com direção*."}),
+        ("welcome_intent", Kind.INFO, {"text": "Sou a *Jô, a IA da Jobito*. Vamos configurar sua busca juntos:\n\n"
+            "1. Definir o que você procura.\n"
+            "2. Organizar seu perfil profissional.\n"
+            "3. Conferir as condições e ativar a Jobito.\n\n"
+            "_Uma etapa por vez. Pode falar do seu jeito._"}),
         ("search_goal", Kind.API_WORKFLOW, {"domain": "candidate", "workflow_key": "search_goal", "stage": "1/3 · Sua busca"}),
         ("profile_brief", Kind.API_WORKFLOW, {"domain": "resume", "workflow_key": "profile_brief", "stage": "2/3 · Seu perfil inicial"}),
         ("base_profile", Kind.API_WORKFLOW, {"domain": "candidate", "workflow_key": "base_profile", "stage": "Dados para sua conta"}),
         ("suspense_2", Kind.ACTION, _compose_greeting()),
-        ("activation_intro", Kind.INFO, {"text": "Já tenho informação suficiente para começar bem. "
-            "Agora vou preparar sua ativação para colocar a Jobito para trabalhar na sua busca."}),
+        ("activation_intro", Kind.INFO, {"text": "*Configuração inicial pronta.*\n\n"
+            "```\nBusca: definida\nPerfil: organizado\nPróximo: ativação\n```\n\n"
+            "Vou preparar sua ativação. Confira o valor e a recorrência na próxima mensagem "
+            "antes de continuar."}),
         ("subscription", Kind.API_WORKFLOW, {"domain": "billing", "workflow_key": "subscription", "stage": "3/3 · Ativação"}),
         ("resume_intro", Kind.ACTION, _activation_card()),
         ("resume_builder", Kind.API_WORKFLOW, {"domain": "resume", "workflow_key": "builder"}),

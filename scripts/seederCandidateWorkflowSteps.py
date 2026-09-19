@@ -40,9 +40,9 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.TEXT,
         "is_required": True,
         "options": {
-            "question": "Perfeito. Já coloquei meus agentes para trabalhar no seu perfil.\n\n"
-                        "Enquanto eles pesquisam e analisam as oportunidades, vou aproveitar para "
-                        "confirmar alguns dados por aqui.\n\nQual seu nome completo?",
+            "question": "*Perfil confirmado.* ✅\n\n"
+                        "Agora vou completar os dados da sua conta.\n\n"
+                        "Qual é seu *nome completo*?",
             "question_options": None,
             "question_type": "wk",
             # Deterministic, no LLM: AnswerProcessor._process_generic rejects
@@ -62,7 +62,8 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.TEXT,
         "is_required": True,
         "options": {
-            "question": "Qual seu melhor e-mail?",
+            "question": "Qual é seu *melhor e-mail*?\n\n"
+                        "_Envie o endereço completo, como_ `nome@exemplo.com`.",
             "question_options": None,
             "question_type": "wk",
             # Deterministic, no LLM: AnswerProcessor._process_generic extracts
@@ -84,7 +85,10 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.TEXT,
         "is_required": True,
         "options": {
-            "question": "Qual cargo você quer encontrar agora?",
+            "question": "*1/3 · Sua busca*\n\n"
+                        "Qual *cargo* você quer encontrar agora?\n\n"
+                        "_Pode responder de forma simples. Por exemplo:_\n"
+                        "> Quero trabalhar como auxiliar administrativo.",
             "question_options": None,
             "question_type": "wk",
             "answer_format": "text",
@@ -102,7 +106,11 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.SELECT,
         "is_required": True,
         "options": {
-            "question": "Qual modelo de trabalho você prefere?",
+            "question": "Vamos ajustar mais um critério: *como você prefere trabalhar?*\n\n"
+                        "- *Remoto:* a distância.\n"
+                        "- *Híbrido:* parte a distância, parte presencial.\n"
+                        "- *Presencial:* no local de trabalho.\n\n"
+                        "Toque na opção que combina com sua busca.",
             "question_options": ["Remoto", "Híbrido", "Presencial"],
             "question_type": "wk",
             "answer_format": "option",

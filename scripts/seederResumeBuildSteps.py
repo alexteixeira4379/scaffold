@@ -54,7 +54,11 @@ STEPS: list[dict] = [
         "is_required": True,
         "options": {
             "profile_target": {"section": None, "mode": "ignore"},
-            "question": "Para isso funcionar da melhor forma, precisamos ter o seu currículo em mãos.\n\nNós vamos analisar o seu CV para selecionar as melhores vagas com base nas suas experiências e no seu perfil profissional.\n\nComo você prefere seguir?\n1) Enviar o seu currículo atual\n2) Criar um currículo do zero com a nossa IA",
+            "question": "*Vamos montar a base do seu currículo.*\n\n"
+                        "Como você prefere seguir?\n\n"
+                        "1. Enviar seu currículo atual para eu organizar as informações.\n"
+                        "2. Criar um currículo comigo, pela conversa.\n\n"
+                        "_Escolha uma das opções abaixo._",
             "question_options": ["Enviar meu currículo", "Criar CV com a IA"],
             "question_type": "wk",
             "answer_format": "text",
@@ -79,7 +83,9 @@ STEPS: list[dict] = [
         "is_required": False,
         "options": {
             "profile_target": {"section": None, "mode": "ignore"},
-            "question": "Por favor, envie seu currículo em PDF para que possamos continuar sua análise. 📄",
+            "question": "*Pode enviar seu currículo.* 📄\n\n"
+                        "Anexe o arquivo em `PDF` aqui na conversa.\n\n"
+                        "_Vou usar as informações do documento para montar seu perfil._",
             "question_options": None,
             "question_type": "resume",
             "answer_format": "text",
@@ -101,7 +107,9 @@ STEPS: list[dict] = [
         "is_required": False,
         "options": {
             "profile_target": {"section": None, "mode": "ignore"},
-            "question": "Tudo bem! Vamos fazer algumas perguntas agora. Fique à vontade para mandar **Áudio** ou **Texto**.",
+            "question": "*Vamos construir seu currículo juntos.*\n\n"
+                        "Pode responder por *áudio* ou *texto*.\n\n"
+                        "_Eu organizo uma parte de cada vez._",
             "question_options": None,
             "question_type": "info",
             "answer_format": "text",
@@ -123,7 +131,10 @@ STEPS: list[dict] = [
         "is_required": True,
         "options": {
             "profile_target": {"section": "summary", "mode": "set"},
-            "question": "Conte um pouco sobre suas habilidades e experiência profissional — um breve resumo para o seu currículo.",
+            "question": "*Seu resumo profissional*\n\nConte um pouco sobre:\n\n"
+                        "- O que você faz ou quer começar a fazer.\n"
+                        "- Suas experiências e principais habilidades.\n\n"
+                        "_Não precisa escrever como currículo. Eu organizo seu relato._",
             "question_options": None,
             "question_type": "resume",
             "answer_format": "text",
@@ -148,7 +159,9 @@ STEPS: list[dict] = [
         "is_required": True,
         "options": {
             "profile_target": {"section": None, "mode": "source_only"},
-            "question": 'Agora sobre seu histórico profissional — se não tiver, diga "nenhum". Caso tenha, mencione o nome das empresas onde já atuou (ex: Coca Cola, Microsoft, Enel etc).',
+            "question": "*Experiências profissionais*\n\n"
+                        "Em quais empresas você já trabalhou? Envie apenas os nomes por enquanto.\n\n"
+                        "_Se estiver buscando sua primeira oportunidade, responda_ `nenhum`.",
             "question_options": None,
             "question_type": "resume",
             "answer_format": "text",
@@ -170,7 +183,12 @@ STEPS: list[dict] = [
         "is_required": False,
         "options": {
             "profile_target": {"section": "experiences", "mode": "append_indexed"},
-            "question": "Para a empresa [content], pode nos contar qual era seu cargo, atividades, data de início e saída?",
+            "question": "*Vamos detalhar sua experiência.*\n\n"
+                        "Empresa: *[content]*\n\n"
+                        "1. Qual era seu cargo?\n"
+                        "2. Quais atividades você realizava?\n"
+                        "3. Quando começou e quando saiu?\n\n"
+                        "_Pode responder tudo em uma mensagem. Se ainda trabalha lá, me avise._",
             "question_options": None,
             "question_type": "resume",
             "answer_format": "text",
@@ -203,7 +221,7 @@ STEPS: list[dict] = [
         "is_required": True,
         "options": {
             "profile_target": {"section": None, "mode": "source_only"},
-            "question": "Qual seu nível de escolaridade?",
+            "question": "*Agora, sua formação.*\n\nQual é seu *nível de escolaridade*?",
             "question_options": [
                 "Médio Completo",
                 "Médio Incompleto",
@@ -240,7 +258,10 @@ STEPS: list[dict] = [
         "is_required": False,
         "options": {
             "profile_target": {"section": "education", "mode": "append"},
-            "question": "📚 Em qual escola você cursou o ensino médio?\n\n📅 Informe também o ano de conclusão.",
+            "question": "*Ensino médio*\n\n"
+                        "- Qual é o nome da escola?\n"
+                        "- Em que ano você concluiu?\n\n"
+                        "_Pode enviar as duas informações na mesma mensagem._",
             "question_options": None,
             "question_type": "resume",
             "answer_format": "text",
@@ -272,7 +293,11 @@ STEPS: list[dict] = [
         "is_required": False,
         "options": {
             "profile_target": {"section": "education", "mode": "append"},
-            "question": "📚 Em qual escola você cursou ou está cursando o ensino médio (mesmo que tenha interrompido)?\n\n📅 Se souber, informe também o ano em que concluiu, pretende concluir ou em que parou os estudos.",
+            "question": "*Ensino médio em andamento ou interrompido*\n\n"
+                        "- Qual é o nome da escola?\n"
+                        "- Você ainda estuda lá ou interrompeu?\n"
+                        "- Se souber, qual a previsão de conclusão ou o ano em que parou?\n\n"
+                        "_Me conte como está hoje; não precisa estimar uma data._",
             "question_options": None,
             "question_type": "resume",
             "answer_format": "text",
@@ -304,7 +329,10 @@ STEPS: list[dict] = [
         "is_required": False,
         "options": {
             "profile_target": {"section": "education", "mode": "append"},
-            "question": "🎓 Nos informe o nome da faculdade e o curso que você fez.\n\n📅 Informe também as datas de início e término.",
+            "question": "*Sua graduação* 🎓\n\n"
+                        "- Faculdade e nome do curso.\n"
+                        "- Quando começou e quando concluiu.\n\n"
+                        "_Pode responder em uma mensagem, com as datas que lembrar._",
             "question_options": None,
             "question_type": "resume",
             "answer_format": "text",
@@ -337,7 +365,11 @@ STEPS: list[dict] = [
         "is_required": False,
         "options": {
             "profile_target": {"section": "education", "mode": "append"},
-            "question": "🎓 Nos informe o nome da faculdade e o curso que você está fazendo.\n\n📅 Também envie as datas de início e a previsão de término.",
+            "question": "*Graduação em andamento ou interrompida* 🎓\n\n"
+                        "- Faculdade e nome do curso.\n"
+                        "- Quando começou.\n"
+                        "- Previsão de conclusão, se houver, ou quando interrompeu.\n\n"
+                        "_Me avise se ainda está cursando._",
             "question_options": None,
             "question_type": "resume",
             "answer_format": "text",
@@ -370,7 +402,11 @@ STEPS: list[dict] = [
         "is_required": False,
         "options": {
             "profile_target": {"section": "education", "mode": "append"},
-            "question": "🎓 Informe o nome da instituição onde você fez (ou está fazendo) a pós-graduação e o curso realizado.\n\n📅 Informe também as datas de início e término (ou a previsão de término, se ainda estiver cursando).",
+            "question": "*Sua pós-graduação* 🎓\n\n"
+                        "- Instituição e nome do curso.\n"
+                        "- Data de início.\n"
+                        "- Conclusão ou previsão, se ainda estiver cursando.\n\n"
+                        "_Pode incluir tudo na mesma resposta._",
             "question_options": None,
             "question_type": "resume",
             "answer_format": "text",
@@ -403,7 +439,9 @@ STEPS: list[dict] = [
         "is_required": False,
         "options": {
             "profile_target": {"section": None, "mode": "ignore"},
-            "question": "Ótimo, seu CV está ficando excelente! Agora vamos para a sessão de informações extras. Todas são *opcionais*.",
+            "question": "*Base do currículo organizada.*\n\n"
+                        "Agora podemos incluir informações extras.\n\n"
+                        "_Esta parte é opcional. Inclua apenas o que fizer sentido para você._",
             "question_options": None,
             "question_type": "info",
             "answer_format": "ack",
@@ -425,7 +463,8 @@ STEPS: list[dict] = [
         "is_required": False,
         "options": {
             "profile_target": {"section": None, "mode": "source_only"},
-            "question": "Você deseja adicionar algum curso extra ao seu currículo? (por exemplo: curso técnico, curso livre ou curso online).",
+            "question": "*Cursos extras · opcional*\n\n"
+                        "Quer adicionar algum curso técnico, livre ou online ao currículo?",
             "question_options": ["Sim", "Não"],
             "question_type": "resume",
             "answer_format": "option",
@@ -451,7 +490,10 @@ STEPS: list[dict] = [
                 "mode": "append_list",
                 "credential_type": "course",
             },
-            "question": "Liste os cursos extras que você deseja adicionar ao currículo, informando apenas o nome de cada um.\nExemplo: Curso de Excel Avançado, Curso de Programação Web.",
+            "question": "Quais *cursos extras* você quer incluir?\n\n"
+                        "Envie apenas os nomes. Exemplo:\n"
+                        "> Excel Avançado, Atendimento ao Cliente.\n\n"
+                        "_Pode separar por vírgulas ou colocar um por linha._",
             "question_options": None,
             "question_type": "resume",
             "answer_format": "text",
@@ -473,7 +515,8 @@ STEPS: list[dict] = [
         "is_required": False,
         "options": {
             "profile_target": {"section": None, "mode": "source_only"},
-            "question": "Você possui alguma certificação que deseja adicionar ao seu currículo? (por exemplo: certificações profissionais ou exames de proficiência).",
+            "question": "*Certificações · opcional*\n\n"
+                        "Tem alguma certificação profissional ou exame de proficiência que queira incluir?",
             "question_options": ["Sim", "Não"],
             "question_type": "resume",
             "answer_format": "option",
@@ -499,7 +542,9 @@ STEPS: list[dict] = [
                 "mode": "append_list",
                 "credential_type": "certification",
             },
-            "question": "Liste as certificações que você deseja adicionar ao currículo, informando apenas o nome de cada uma.\nExemplo: Certificação AWS Solutions Architect, Certificação ITIL Foundation.",
+            "question": "Envie os nomes das *certificações* que deseja incluir.\n\n"
+                        "_Exemplo:_\n> AWS Solutions Architect, ITIL Foundation.\n\n"
+                        "Pode separar por vírgulas ou colocar uma por linha.",
             "question_options": None,
             "question_type": "resume",
             "answer_format": "text",
@@ -521,7 +566,7 @@ STEPS: list[dict] = [
         "is_required": False,
         "options": {
             "profile_target": {"section": None, "mode": "source_only"},
-            "question": "Fala algum idioma além do português?",
+            "question": "*Idiomas · opcional*\n\nVocê fala algum idioma além do português?",
             "question_options": ["Sim", "Não"],
             "question_type": "resume",
             "answer_format": "option",
@@ -547,7 +592,9 @@ STEPS: list[dict] = [
                 "mode": "set_indexed_field",
                 "field": "idioma",
             },
-            "question": "Informe quais idiomas você fala.",
+            "question": "Quais *idiomas* você fala?\n\n"
+                        "_Por exemplo:_\n> Inglês e espanhol.\n\n"
+                        "Depois eu pergunto seu nível em cada um.",
             "question_options": None,
             "question_type": "resume",
             "answer_format": "text",
@@ -573,7 +620,7 @@ STEPS: list[dict] = [
                 "mode": "set_indexed_field",
                 "field": "nivel",
             },
-            "question": "Para o idioma [content], qual seu nível?",
+            "question": "*Idioma: [content]*\n\nQual é seu nível nesse idioma?",
             "question_options": ["básico", "intermediário", "avançado", "fluente"],
             "question_type": "resume",
             "answer_format": "text",
@@ -598,7 +645,8 @@ STEPS: list[dict] = [
         "is_required": False,
         "options": {
             "profile_target": {"section": None, "mode": "source_only"},
-            "question": "Tem alguma carta de referência ou indicação profissional?",
+            "question": "*Referências · opcional*\n\n"
+                        "Tem alguma carta de referência ou indicação profissional que queira mencionar?",
             "question_options": ["Sim", "Não"],
             "question_type": "resume",
             "answer_format": "option",
@@ -620,7 +668,10 @@ STEPS: list[dict] = [
         "is_required": False,
         "options": {
             "profile_target": {"section": "reference", "mode": "append"},
-            "question": "Conte-nos sobre sua carta de referência ou quem te indicou e o cargo.",
+            "question": "*Vamos registrar sua referência.*\n\n"
+                        "- Quem escreveu a carta ou fez a indicação?\n"
+                        "- Qual é o cargo dessa pessoa?\n\n"
+                        "_Conte apenas o que deseja incluir no currículo._",
             "question_options": None,
             "question_type": "resume",
             "answer_format": "text",
@@ -651,7 +702,8 @@ STEPS: list[dict] = [
         "is_required": False,
         "options": {
             "profile_target": {"section": None, "mode": "source_only"},
-            "question": "Já realizou algum trabalho voluntário ou projeto relevante que gostaria de mencionar?",
+            "question": "*Projetos e voluntariado · opcional*\n\n"
+                        "Quer mencionar algum projeto relevante ou trabalho voluntário?",
             "question_options": ["Sim", "Não"],
             "question_type": "resume",
             "answer_format": "option",
@@ -673,7 +725,11 @@ STEPS: list[dict] = [
         "is_required": False,
         "options": {
             "profile_target": {"section": "volunteer", "mode": "append"},
-            "question": "Conte-nos sobre seu trabalho voluntário ou projeto",
+            "question": "*Me conte sobre esse projeto.*\n\n"
+                        "- Qual era o projeto ou trabalho voluntário?\n"
+                        "- Qual foi sua participação?\n"
+                        "- O que você realizou e em que período?\n\n"
+                        "_Pode contar por áudio ou texto. Eu organizo._",
             "question_options": None,
             "question_type": "resume",
             "answer_format": "text",
@@ -712,10 +768,12 @@ STEPS: list[dict] = [
         "is_required": True,
         "options": {
             "workflow_key": "profile_brief",
-            "question": "Agora quero te conhecer um pouco melhor.\n\n"
-                        "Se você já tiver seu currículo, pode me mandar por aqui que isso agiliza bastante.\n\n"
-                        "Se não tiver, sem problema — pode me mandar um áudio ou simplesmente escrever "
-                        "um pouco sobre você.\n\nEu organizo tudo daqui.",
+            "question": "*2/3 · Seu perfil profissional*\n\n"
+                        "Agora quero entender sua trajetória. Escolha o jeito mais fácil:\n\n"
+                        "- *Currículo:* envie seu arquivo em `PDF`.\n"
+                        "- *Áudio:* me conte suas experiências e habilidades.\n"
+                        "- *Texto:* escreva um pouco sobre o que você faz.\n\n"
+                        "_Eu organizo as informações e te mostro uma leitura inicial para conferir._",
             "answer_format": "professional_brief",
             # Was 2000: too tight now that this step accepts an uploaded résumé
             # (PDF text extraction, up to conversation-worker's MediaSettings.
@@ -755,14 +813,11 @@ STEPS: list[dict] = [
         "is_required": True,
         "options": {
             "workflow_key": "profile_brief",
-            "question": "*Perfil identificado*\n\n"
-                        "[profile_summary]\n\n"
-                        "✓ Perfil profissional registrado\n"
-                        "✓ Critérios de busca preparados\n\n"
-                        "_A próxima etapa já é trabalho meu._\n\n"
-                        "Vou acionar meus agentes de IA para buscar oportunidades na internet, "
-                        "analisar as vagas encontradas e separar as que mais combinam com você.\n\n"
-                        "Coloco eles pra trabalhar?",
+            "question": "*Minha leitura inicial do seu perfil*\n\n"
+                        "> [profile_summary]\n\n"
+                        "_Essa é uma interpretação do que você compartilhou. Você pode corrigir._\n\n"
+                        "Se estiver certo, toque em *Começar minha busca* para confirmar e continuar. "
+                        "Se quiser ajustar, toque em *Quero corrigir*.",
             "answer_format": "option",
             "question_options": ["Começar minha busca", "Quero corrigir"],
             "action": "confirm_brief",
