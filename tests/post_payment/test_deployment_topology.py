@@ -15,3 +15,9 @@ def test_execution_and_resume_notification_queues_are_provisioned():
         assert f"{name}.dlq" in queues
     assert queues["tracking.event"].arguments == {}
     assert queues["tracking.event.dlq"].durable
+
+
+def test_legacy_candidate_update_queue_remains_available():
+    queues = {queue.name: queue for queue in get_full_topology().queues}
+    assert queues["candidate.updated"].durable
+    assert queues["candidate.updated"].arguments == {}
