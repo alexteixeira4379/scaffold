@@ -41,6 +41,10 @@ _QUEUE_NAMES = [
     "conversation.reply.composed",
     "application.submitted",
     "application.failed",
+    "application.linkedin.submit",
+    "application.ats.submit",
+    "notification.application.submitted",
+    "notification.application.failed",
     # Notification-router outputs (consumed by whatsapp/email/sns workers)
     "notification.send_whatsapp",
     "notification.send_email",
@@ -48,6 +52,7 @@ _QUEUE_NAMES = [
     # Resume
     "resume.generate",
     "resume.generated",
+    "resume.available",
 ]
 
 _exchanges: list[ExchangeDefinition] = []
@@ -62,6 +67,7 @@ for _name in _QUEUE_NAMES:
 
 billing_topology = MessagingTopology(
     exchanges=_exchanges,
-    queues=_queues,
+    # Preserve the arguments of the existing legacy tracking queue.
+    queues=[*_queues, QueueDefinition(name="tracking.event", durable=True)],
     bindings=_bindings,
 )
