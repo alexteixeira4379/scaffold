@@ -108,7 +108,7 @@ STEPS: list[dict] = [
         "options": {
             "profile_target": {"section": None, "mode": "ignore"},
             "question": "*Vamos construir seu currículo juntos.*\n\n"
-                        "Pode responder por *áudio* ou *texto*.\n\n"
+                        "Pode responder por `áudio` ou `texto`.\n\n"
                         "_Eu organizo uma parte de cada vez._",
             "question_options": None,
             "question_type": "info",
@@ -184,7 +184,7 @@ STEPS: list[dict] = [
         "options": {
             "profile_target": {"section": "experiences", "mode": "append_indexed"},
             "question": "*Vamos detalhar sua experiência.*\n\n"
-                        "Empresa: *[content]*\n\n"
+                        "Empresa: `[content]`\n\n"
                         "1. Qual era seu cargo?\n"
                         "2. Quais atividades você realizava?\n"
                         "3. Quando começou e quando saiu?\n\n"
@@ -769,7 +769,7 @@ STEPS: list[dict] = [
         "options": {
             "workflow_key": "profile_brief",
             "question": "Agora vou organizar sua experiência para essa busca.\n\n"
-                        "Pode enviar seu *currículo em PDF* ou me contar o que você faz por *áudio ou texto*. "
+                        "Pode enviar seu currículo em `PDF` ou me contar o que você faz por `áudio` ou `texto`. "
                         "Se busca o primeiro emprego, me conte o que já estudou ou sabe fazer.",
             "answer_format": "professional_brief",
             # Was 2000: too tight now that this step accepts an uploaded résumé
@@ -814,7 +814,7 @@ STEPS: list[dict] = [
                         "> [profile_summary]\n\n"
                         "_Essa é uma interpretação do que você compartilhou. Você pode corrigir._\n\n"
                         "Se essa leitura está certa, confirme para eu aproveitar essas informações. "
-                        "Se quiser ajustar, toque em *Quero corrigir*.",
+                        "Se quiser ajustar, toque em `Quero corrigir`.",
             "answer_format": "option",
             "question_options": ["Está certo", "Quero corrigir"],
             "action": "confirm_brief",
