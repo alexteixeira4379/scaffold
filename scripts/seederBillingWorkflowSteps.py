@@ -34,50 +34,28 @@ from scaffold.models.billing.billing_workflow_steps import BillingWorkflowStep  
 STEPS: list[dict] = [
     {
         "workflow_key": "subscription",
-        "step_key": "select_plan",
+        "step_key": "accept_offer",
         "step_order": 10,
-        "input_type": ResumeStepInputType.SELECT,
-        "is_required": True,
-        "options": {
-            "question": "Escolha o plano que faz mais sentido para você.",
-            # Options are injected at runtime from the billing plan catalog;
-            # the seed carries no fixed plan option.
-            "options_source": "plan_catalog",
-            "question_type": "wk",
-            "answer_format": "option",
-            "answer_format_output": {
-                "type": "string",
-                "description": "Código do plano escolhido (plan_code).",
-            },
-            # No agent_prompt: matching is a deterministic accent/case-insensitive
-            # match against the live plan catalog (answer_processor.py's
-            # AnswerProcessor._process_select_plan, ported from
-            # conversation-worker's plan_selection.resolve_plan_code) — never an
-            # LLM call. Do not add an agent_prompt back here; nothing reads it.
-        },
-    },
-    {
-        "workflow_key": "subscription",
-        "step_key": "confirm_checkout",
-        "step_order": 20,
         "input_type": ResumeStepInputType.BOOLEAN,
         "is_required": True,
         "options": {
-            "question": "Posso gerar seu link de pagamento para o plano escolhido?",
-            "question_options": ["Sim", "Não"],
+            # billing-api renders the configured onboarding offer from the
+            # live catalog, including price and recurrence, and injects one
+            # explicit "Ir para pagamento" action. The plan code remains an
+            # internal implementation detail; acceptance is always real input.
+            "question": "",
+            "question_options": ["Ir para pagamento"],
             "question_type": "wk",
             "answer_format": "option",
-            "answer_format_output": {"type": "string", "enum": ["Sim", "Não"]},
-            "agent_prompt": "Analise a resposta e determine se o candidato confirmou a geração do checkout.",
-            # Revalidated server-side: the API re-checks the chosen plan before
-            # creating the checkout session.
+            "answer_format_output": {"type": "string", "enum": ["accepted"]},
+            "offer_source": "onboarding_default",
             "action": "create_checkout",
         },
     },
     {
         "workflow_key": "subscription",
         "step_key": "await_payment",
-        "step_order": 30,
+        "step_order": 20,
         "input_type": ResumeStepInputType.TEXT,
         "is_required": True,
         "options": {
@@ -92,6 +70,10 @@ STEPS: list[dict] = [
         },
     },
 ]
+
+# Replaced by the single candidate-facing ``accept_offer`` step. Keeping the
+# rows for historical answer FKs is intentional; they are only deactivated.
+REMOVED_STEP_KEYS = frozenset({"select_plan", "confirm_checkout"})
 
 
 async def get_or_create_step(session, step_data: dict) -> BillingWorkflowStep:
@@ -149,6 +131,24 @@ async def run_seed(reset: bool) -> None:
 
             for step_data in STEPS:
                 await get_or_create_step(session, step_data)
+
+            for step_key in REMOVED_STEP_KEYS:
+                legacy = (
+                    (
+                        await session.execute(
+                            select(BillingWorkflowStep)
+                            .where(
+                                BillingWorkflowStep.workflow_key == "subscription",
+                                BillingWorkflowStep.step_key == step_key,
+                            )
+                            .limit(1)
+                        )
+                    )
+                    .scalars()
+                    .first()
+                )
+                if legacy is not None:
+                    legacy.active = False
 
             await session.commit()
 

@@ -70,13 +70,12 @@ def _activation_card() -> dict:
         "action_key": "compose_presentation",
         "defaults": {
             "first_name": "por aqui",
-            "plan_name": "plano Jobito",
             "summary": "Agora vou acompanhar sua busca de forma ativa e usar seu perfil "
                        "para selecionar as oportunidades com maior aderência.",
             "next_step": "Próximo passo: completar seu currículo para eu encontrar as vagas certas.",
         },
         "presentation": {
-            "text_template": "Boa escolha. Agora a Jô vai acompanhar sua busca de perto.\n\n$summary\n\n"
+            "text_template": "Tudo certo. Agora a Jô vai acompanhar sua busca de perto.\n\n$summary\n\n"
                              "Vamos completar seu currículo para eu encontrar as vagas certas: você pode "
                              "enviar o documento atual ou construir uma versão comigo.",
             "template_html": (_TEMPLATES / "jobito_activated.html").read_text(),
@@ -198,7 +197,7 @@ def onboard_steps() -> list[tuple[str, Kind, dict]]:
         ("base_profile", Kind.API_WORKFLOW, {"domain": "candidate", "workflow_key": "base_profile", "stage": "Dados para sua conta"}),
         ("suspense_2", Kind.ACTION, _compose_greeting()),
         ("activation_intro", Kind.INFO, {"text": "Já tenho informação suficiente para começar bem. "
-            "Agora é só escolher como você quer que a Jobito trabalhe na sua busca."}),
+            "Agora vou preparar sua ativação para colocar a Jobito para trabalhar na sua busca."}),
         ("subscription", Kind.API_WORKFLOW, {"domain": "billing", "workflow_key": "subscription", "stage": "3/3 · Ativação"}),
         ("resume_intro", Kind.ACTION, _activation_card()),
         ("resume_builder", Kind.API_WORKFLOW, {"domain": "resume", "workflow_key": "builder"}),
