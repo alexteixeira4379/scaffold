@@ -59,9 +59,8 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.TEXT,
         "is_required": True,
         "options": {
-            "question": "*Aguardando confirmação do pagamento.*\n\n"
-                        "Assim que a confirmação chegar, seguimos com sua ativação.\n\n"
-                        "_Você não precisa enviar comprovante por aqui._",
+            "question": "Eu aviso aqui quando o pagamento for confirmado.\n"
+                        "_Não precisa enviar comprovante._",
             "question_options": None,
             "question_type": "info",
             "answer_format": "ack",

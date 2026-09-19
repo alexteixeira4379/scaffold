@@ -768,12 +768,9 @@ STEPS: list[dict] = [
         "is_required": True,
         "options": {
             "workflow_key": "profile_brief",
-            "question": "*2/3 · Seu perfil profissional*\n\n"
-                        "Agora quero entender sua trajetória. Escolha o jeito mais fácil:\n\n"
-                        "- *Currículo:* envie seu arquivo em `PDF`.\n"
-                        "- *Áudio:* me conte suas experiências e habilidades.\n"
-                        "- *Texto:* escreva um pouco sobre o que você faz.\n\n"
-                        "_Eu organizo as informações e te mostro uma leitura inicial para conferir._",
+            "question": "Agora vou organizar sua experiência para essa busca.\n\n"
+                        "Pode enviar seu *currículo em PDF* ou me contar o que você faz por *áudio ou texto*. "
+                        "Se busca o primeiro emprego, me conte o que já estudou ou sabe fazer.",
             "answer_format": "professional_brief",
             # Was 2000: too tight now that this step accepts an uploaded résumé
             # (PDF text extraction, up to conversation-worker's MediaSettings.
@@ -816,14 +813,40 @@ STEPS: list[dict] = [
             "question": "*Minha leitura inicial do seu perfil*\n\n"
                         "> [profile_summary]\n\n"
                         "_Essa é uma interpretação do que você compartilhou. Você pode corrigir._\n\n"
-                        "Se estiver certo, toque em *Começar minha busca* para confirmar e continuar. "
+                        "Se essa leitura está certa, confirme para eu aproveitar essas informações. "
                         "Se quiser ajustar, toque em *Quero corrigir*.",
             "answer_format": "option",
-            "question_options": ["Começar minha busca", "Quero corrigir"],
+            "question_options": ["Está certo", "Quero corrigir"],
             "action": "confirm_brief",
         },
     },
 ]
+
+
+# One optional invitation, not a sequence of yes/no questions. Existing rows
+# remain available for imported answers and historical foreign keys.
+for _step in STEPS:
+    if (_step["options"].get("workflow_key", "builder") == "builder"
+            and _step["step_order"] > 111):
+        _step["options"]["collection_mode"] = "import_only"
+    if _step["step_key"] == "extra_section_intro":
+        _step["input_type"] = ResumeStepInputType.TEXT
+        _step["options"].update({
+            "question": "*A base do seu currículo está organizada.*\n\n"
+                        "Quer acrescentar algo que ainda não apareceu, como cursos, idiomas, "
+                        "certificações ou projetos? Pode contar tudo em uma mensagem.\n\n"
+                        "_Se já está completo, responda continuar._",
+            "question_type": "resume", "answer_format": "optional_profile",
+            "profile_target": {"mode": "append_sections", "section": None},
+        })
+STEPS.append({
+    "step_key": "review_resume", "step_label": "Conferir perfil preparado",
+    "description": "Confirmar ou corrigir os dados profissionais antes da assinatura",
+    "step_order": 200, "input_type": ResumeStepInputType.TEXT, "is_required": True,
+    "options": {"question": "[resume_preview]\n\n*Ficou fiel à sua trajetória?*\n"
+                "Responda confirmar ou me diga o que precisa corrigir.",
+                "answer_format": "review_profile", "profile_target": {"mode": "ignore", "section": None}},
+})
 
 
 async def get_or_create_step(session, step_data: dict) -> ResumeBuildStep:

@@ -148,9 +148,9 @@ def test_upgrade_reseeds_in_place_and_is_idempotent(monkeypatch):
             ).mappings()
         }
         assert onboard_rows["activation_intro"].id == 11
-        assert "preparar sua ativação" in onboard_rows["activation_intro"].config["text"]
+        assert onboard_rows["activation_intro"].config["text"] == ""
         assert onboard_rows["resume_intro"].id == 12
-        assert "completar seu currículo" in onboard_rows["resume_intro"].config[
+        assert "Seu perfil e sua busca estão configurados" in onboard_rows["resume_intro"].config[
             "presentation"
         ]["text_template"]
         assert len(onboard_rows) == 10

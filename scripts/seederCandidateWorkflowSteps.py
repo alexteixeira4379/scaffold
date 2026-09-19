@@ -40,8 +40,7 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.TEXT,
         "is_required": True,
         "options": {
-            "question": "*Perfil confirmado.* ✅\n\n"
-                        "Agora vou completar os dados da sua conta.\n\n"
+            "question": "Seu perfil está organizado. Para identificar sua conta, "
                         "Qual é seu *nome completo*?",
             "question_options": None,
             "question_type": "wk",
@@ -85,13 +84,10 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.TEXT,
         "is_required": True,
         "options": {
-            "question": "*1/3 · Sua busca*\n\n"
-                        "Qual *cargo* você quer encontrar agora?\n\n"
-                        "_Pode responder de forma simples. Por exemplo:_\n"
-                        "> Quero trabalhar como auxiliar administrativo.",
+            "question": "Que trabalho você quer encontrar? Pode me contar o cargo e como prefere trabalhar.",
             "question_options": None,
             "question_type": "wk",
-            "answer_format": "text",
+            "answer_format": "search_intent",
             "answer_format_output": {
                 "type": "string",
                 "description": "Cargo desejado pelo candidato.",
@@ -106,11 +102,7 @@ STEPS: list[dict] = [
         "input_type": ResumeStepInputType.SELECT,
         "is_required": True,
         "options": {
-            "question": "Vamos ajustar mais um critério: *como você prefere trabalhar?*\n\n"
-                        "- *Remoto:* a distância.\n"
-                        "- *Híbrido:* parte a distância, parte presencial.\n"
-                        "- *Presencial:* no local de trabalho.\n\n"
-                        "Toque na opção que combina com sua busca.",
+            "question": "E *como você prefere trabalhar*: remoto, híbrido ou presencial?",
             "question_options": ["Remoto", "Híbrido", "Presencial"],
             "question_type": "wk",
             "answer_format": "option",
