@@ -68,6 +68,10 @@ for _name in _QUEUE_NAMES:
 billing_topology = MessagingTopology(
     exchanges=_exchanges,
     # Preserve the arguments of the existing legacy tracking queue.
-    queues=[*_queues, QueueDefinition(name="tracking.event", durable=True)],
+    queues=[
+        *_queues,
+        QueueDefinition(name="tracking.event", durable=True),
+        QueueDefinition(name="tracking.event.dlq", durable=True),
+    ],
     bindings=_bindings,
 )

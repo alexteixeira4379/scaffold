@@ -14,3 +14,4 @@ def test_execution_and_resume_notification_queues_are_provisioned():
         assert queues[name].arguments["x-dead-letter-routing-key"] == f"{name}.dlq"
         assert f"{name}.dlq" in queues
     assert queues["tracking.event"].arguments == {}
+    assert queues["tracking.event.dlq"].durable
