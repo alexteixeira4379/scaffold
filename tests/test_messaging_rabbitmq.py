@@ -65,7 +65,7 @@ async def test_rabbitmq_connect_uses_heartbeat_and_timeout(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_rabbitmq_connect_disables_publisher_confirms(monkeypatch) -> None:
+async def test_rabbitmq_publisher_enables_confirms(monkeypatch) -> None:
     connection = FakeConnection()
 
     async def connect_robust(url: str, **kwargs):
@@ -81,7 +81,10 @@ async def test_rabbitmq_connect_disables_publisher_confirms(monkeypatch) -> None
 
     await broker.connect()
 
-    assert connection.channel_instance.kwargs == {"publisher_confirms": False}
+    assert connection.channel_instance.kwargs == {
+        "publisher_confirms": True,
+        "on_return_raises": True,
+    }
 
 
 def test_factory_passes_rabbitmq_connection_tuning() -> None:
@@ -123,7 +126,7 @@ async def test_rabbitmq_close_suppresses_already_closed_errors() -> None:
 
 
 @pytest.mark.asyncio
-async def test_rabbitmq_fetch_one_transfer_uses_channel_tx_methods() -> None:
+async def test_rabbitmq_fetch_one_transfer_confirms_publish_before_ack() -> None:
     calls: list[tuple[str, object]] = []
 
     class IncomingChannel:
@@ -169,9 +172,15 @@ async def test_rabbitmq_fetch_one_transfer_uses_channel_tx_methods() -> None:
     broker = RabbitMQMessaging("amqp://guest:guest@localhost:5672/")
     broker._channel = SimpleNamespace(declare_queue=declare_queue)
 
+    async def publish(message):
+        calls.append(("publish_confirmed", message))
+
+    broker.publish = publish
     message = await broker.fetch_one("job.captured")
 
     assert message is not None
-    await message.transfer("job.captured.dlq", {"id": "a1", "status": "failed"}, correlation_id="c1")
+    await message.transfer(
+        "job.captured.dlq", {"id": "a1", "status": "failed"}, correlation_id="c1"
+    )
 
-    assert [name for name, _ in calls] == ["tx_select", "basic_publish", "basic_ack", "tx_commit"]
+    assert [name for name, _ in calls] == ["publish_confirmed", "basic_ack"]

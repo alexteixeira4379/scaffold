@@ -2,7 +2,6 @@ import json
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any, cast
 
-from aio_pika import DeliveryMode, Message
 from scaffold.messaging.contracts import OutboundMessage, QueueSubscription
 from scaffold.messaging.delivery import read_count_from_amqp
 from scaffold.messaging.ports import ConsumedEnvelope, FetchedMessage
@@ -28,6 +27,7 @@ class RabbitMQMessaging:
         self._timeout_s = timeout_s
         self._connection: Any = None
         self._channel: Any = None
+        self._publisher: Any = None
 
     async def connect(self) -> None:
         aio_pika = _import_aio_pika()
@@ -37,8 +37,18 @@ class RabbitMQMessaging:
             timeout=self._timeout_s,
         )
         self._channel = await self._connection.channel(publisher_confirms=False)
+        # Keep publication confirmations independent from the consuming channel.
+        self._publisher = await self._connection.channel(
+            publisher_confirms=True, on_return_raises=True
+        )
 
     async def close(self) -> None:
+        if self._publisher is not None:
+            try:
+                await self._publisher.close()
+            except Exception:
+                pass
+            self._publisher = None
         if self._channel is not None:
             try:
                 await self._channel.close()
@@ -65,7 +75,13 @@ class RabbitMQMessaging:
             correlation_id=message.correlation_id or None,
             headers=cast(Any, hdrs or None),
         )
-        await self._channel.default_exchange.publish(amqp_message, routing_key=message.queue)
+        publisher = self._publisher or self._channel
+        exchange = (
+            await publisher.get_exchange(message.exchange)
+            if message.exchange
+            else publisher.default_exchange
+        )
+        await exchange.publish(amqp_message, routing_key=message.queue, mandatory=True)
 
     async def fetch_one(self, queue_name: str, *, durable: bool = True) -> FetchedMessage | None:
         if self._channel is None:
@@ -87,29 +103,19 @@ class RabbitMQMessaging:
             destination_correlation_id: str | None,
             headers: dict[str, str] | None,
         ) -> None:
-            channel = incoming.channel
-            body = json.dumps(destination_body, ensure_ascii=False).encode("utf-8")
-            hdrs: dict[str, str] = dict(headers or {})
-            amqp_message = Message(
-                body=body,
-                content_type="application/json",
-                delivery_mode=DeliveryMode.PERSISTENT,
-                correlation_id=destination_correlation_id or None,
-                headers=cast(Any, hdrs or None),
-            )
-            await channel.tx_select()
-            try:
-                await channel.basic_publish(
-                    amqp_message.body,
-                    exchange="",
-                    routing_key=destination_queue,
-                    properties=amqp_message.properties,
+            # Confirm destination publication before acknowledging the source.
+            # Delivery is at-least-once; consumers deduplicate by event id.
+            # AMQP tx_select is permanent for a channel and would otherwise
+            # leave subsequent ordinary acknowledgements uncommitted.
+            await self.publish(
+                OutboundMessage(
+                    queue=destination_queue,
+                    body=destination_body,
+                    correlation_id=destination_correlation_id,
+                    headers=dict(headers or {}),
                 )
-                await incoming.ack()
-            except Exception:
-                await channel.tx_rollback()
-                raise
-            await channel.tx_commit()
+            )
+            await incoming.ack()
 
         hdrs = incoming.headers
         read_count = read_count_from_amqp(bool(incoming.redelivered), hdrs)

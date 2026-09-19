@@ -31,6 +31,18 @@ class InMemoryMessaging:
     async def publish(self, message: OutboundMessage) -> None:
         if self._closed:
             raise RuntimeError("closed")
+        if message.exchange:
+            from scaffold.messaging.definitions.domain import DOMAIN_EXCHANGE, SUBSCRIPTIONS
+
+            if message.exchange != DOMAIN_EXCHANGE:
+                raise ValueError("Unknown exchange")
+            for queue, patterns in SUBSCRIPTIONS.items():
+                if any(
+                    message.queue == p or (p.endswith(".#") and message.queue.startswith(p[:-1]))
+                    for p in patterns
+                ):
+                    await self.publish(message.model_copy(update={"queue": queue, "exchange": ""}))
+            return
         raw = json.dumps(
             {
                 "body": message.body,

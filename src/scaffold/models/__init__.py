@@ -24,7 +24,9 @@ from scaffold.models.candidate.candidate_application_data import CandidateApplic
 from scaffold.models.candidate.candidate_events import CandidateEvent
 from scaffold.models.candidate.candidate_preferences import CandidatePreference
 from scaffold.models.candidate.candidate_target_profile_entities import CandidateTargetProfileEntity
-from scaffold.models.candidate.candidate_target_profile_keywords import CandidateTargetProfileKeyword
+from scaffold.models.candidate.candidate_target_profile_keywords import (
+    CandidateTargetProfileKeyword,
+)
 from scaffold.models.candidate.candidate_target_profiles import CandidateTargetProfile
 from scaffold.models.candidate.candidate_workflow_answers import CandidateWorkflowAnswer
 from scaffold.models.candidate.candidate_workflow_sessions import CandidateWorkflowSession
@@ -63,11 +65,15 @@ from scaffold.models.resume.resume_profile_references import ResumeProfileRefere
 from scaffold.models.search.job_collection_checkpoints import JobCollectionCheckpoint
 from scaffold.models.search.job_collection_definitions import JobCollectionDefinition
 from scaffold.models.search.job_collection_runs import JobCollectionRun
-from scaffold.models.professional.professional_collection_memberships import ProfessionalCollectionMembership
+from scaffold.models.professional.professional_collection_memberships import (
+    ProfessionalCollectionMembership,
+)
 from scaffold.models.professional.professional_collections import ProfessionalCollection
 from scaffold.models.professional.professional_entities import ProfessionalEntity
 from scaffold.models.professional.professional_entity_aliases import ProfessionalEntityAlias
-from scaffold.models.professional.professional_entity_hierarchy_relations import ProfessionalEntityHierarchyRelation
+from scaffold.models.professional.professional_entity_hierarchy_relations import (
+    ProfessionalEntityHierarchyRelation,
+)
 from scaffold.models.professional.professional_entity_relations import ProfessionalEntityRelation
 from scaffold.models.professional.professional_entity_sources import ProfessionalEntitySource
 from scaffold.models.tracking.tracking_attributions import TrackingAttribution
@@ -154,5 +160,17 @@ __all__ = [
     "TrackingEvent",
     "TrackingSession",
     "TrackingVisit",
+    "DomainOutbox",
+    "DomainInbox",
+    "DomainProjection",
+    "ApplicationAuthorization",
+    "CollectionCoverage",
 ]
 from scaffold.models.application.application_entitlements import ApplicationEntitlement  # noqa: F401
+from scaffold.models.domain_delivery import (
+    DomainOutbox,
+    DomainInbox,
+    DomainProjection,
+    ApplicationAuthorization,
+    CollectionCoverage,
+)  # noqa: F401

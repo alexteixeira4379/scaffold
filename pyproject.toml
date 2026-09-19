@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "scaffold"
-version = "2.2.0"
+version = "2.3.0"
 requires-python = ">=3.11"
 dependencies = [
     "sqlalchemy[asyncio]>=2.0",
@@ -28,6 +28,7 @@ ai = [
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
+    "aiosqlite>=0.20",
     "mypy>=1.9",
     "ruff>=0.4",
     "aio-pika>=9.4",

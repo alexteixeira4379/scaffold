@@ -98,8 +98,10 @@ async def evaluate_entity_overlap(
         )
 
     # 2. Carregar entity_ids do candidato
-    candidate_entity_ids_list = (context["candidate"] if context is not None else
-        await candidate_target_profile_entity_repository.get_entity_ids_by_target_profile_id(
+    candidate_entity_ids_list = (
+        context["candidate"]
+        if context is not None
+        else await candidate_target_profile_entity_repository.get_entity_ids_by_target_profile_id(
             session, candidate_target_profile_id
         )
     )
@@ -126,8 +128,10 @@ async def evaluate_entity_overlap(
             if context is not None:
                 parent_ids = context["parents"].get(job_eid, set())
             else:
-                parents = await professional_entity_hierarchy_relation_repository.list_parents_of_child(
-                    session, job_eid, relation_type=None
+                parents = (
+                    await professional_entity_hierarchy_relation_repository.list_parents_of_child(
+                        session, job_eid, relation_type=None
+                    )
                 )
                 parent_ids = {p.parent_entity_id for p in parents if p.depth == 1}
             matched_parents = parent_ids & candidate_entity_ids
@@ -154,7 +158,8 @@ async def evaluate_profile(
     job: Job,
     job_keywords: list[JobRoutingKeyword],
     profile_with_keywords: ProfileWithKeywords,
-    *, entity_context: dict | None = None,
+    *,
+    entity_context: dict | None = None,
 ) -> EligibilityScore:
     """Evaluate a single candidate target profile against a job.
 
@@ -209,14 +214,8 @@ async def evaluate_profile(
         return _rejected(filters)
     filters["experience"] = "pass"
 
-    # Salary filter: if job.salary_max exists, require job.salary_max >= profile.min_salary
-    if (
-        job.salary_max is not None
-        and profile.min_salary is not None
-        and float(job.salary_max) < float(profile.min_salary)
-    ):
-        filters["salary"] = "rejected"
-        return _rejected(filters)
+    # Salary is a weighted match preference, not a pre-match rejection.
+    # Missing constraints/data are fully compatible in the scorer.
     filters["salary"] = "pass"
 
     # --- Entity-based matching ---
