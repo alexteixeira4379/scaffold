@@ -39,6 +39,7 @@ class TokenService:
             "exp": exp,
             "iat": now,
             "jti": jti,
+            "type": "access",
         }
         token = jwt.encode(payload, self._secret, algorithm=self._algorithm)
         return token, jti, self._access_expire_minutes * 60
@@ -96,6 +97,20 @@ class TokenService:
             return None
 
         return candidate_id, jti
+
+    async def consume_refresh_token(self, cache: Any, token: str) -> tuple[int, str] | None:
+        """Atomically validate and consume a refresh token before rotation."""
+        try:
+            payload = self.decode_token(token)
+            if payload.get("type") != "refresh" or not payload.get("jti"):
+                return None
+            candidate_id = int(payload["sub"])
+        except (jwt.InvalidTokenError, KeyError, TypeError, ValueError):
+            return None
+        stored = await cache.getdel(f"refresh:{payload['jti']}")
+        if stored != str(candidate_id):
+            return None
+        return candidate_id, payload["jti"]
 
     async def revoke_refresh_token(self, cache: Any, jti: str) -> None:
         """Remove refresh token from cache (revocation)."""

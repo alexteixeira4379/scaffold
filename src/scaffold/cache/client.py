@@ -22,6 +22,10 @@ class CacheClient:
     async def get(self, key: str) -> str | None:
         return await self._backend.get(key)
 
+    async def getdel(self, key: str) -> str | None:
+        """Read and consume a value atomically (single-use credentials)."""
+        return await self._backend.getdel(key)
+
     async def set(self, key: str, value: str, *, ttl_s: int | None = None) -> None:
         await self._backend.set(key, value, ttl_s=ttl_s)
 

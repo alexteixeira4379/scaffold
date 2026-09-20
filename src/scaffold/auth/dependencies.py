@@ -20,7 +20,9 @@ from __future__ import annotations
 import os
 
 import jwt
-from fastapi import Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
+from scaffold.cache import CacheClient
+from scaffold.cache.redis import RedisCache
 
 from scaffold.auth.context import AuthContext
 from scaffold.auth.token_service import JWT_ALGORITHM
@@ -36,7 +38,15 @@ def get_service_api_key() -> str:
 
 def _decode_jwt(token: str) -> dict:
     try:
-        return jwt.decode(token, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
+        claims = jwt.decode(
+            token,
+            get_jwt_secret(),
+            algorithms=[JWT_ALGORITHM],
+            options={"require": ["exp", "sub", "iat", "jti"]},
+        )
+        if claims.get("type", "access") != "access" or not claims.get("jti"):
+            raise jwt.InvalidTokenError("Access token required")
+        return claims
     except jwt.ExpiredSignatureError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired"
@@ -54,7 +64,10 @@ def _candidate_id_from_claims(claims: dict) -> int:
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Token missing 'sub' claim"
         )
     try:
-        return int(sub)
+        candidate_id = int(sub)
+        if candidate_id <= 0:
+            raise ValueError("Invalid candidate")
+        return candidate_id
     except (TypeError, ValueError) as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -75,7 +88,49 @@ def _parse_bearer(authorization: str | None) -> str:
     return parts[1]
 
 
-def verify_jwt(authorization: str | None = Header(None, alias="Authorization")) -> AuthContext:
+async def _check_revocation(request: Request, authorization: str | None) -> None:
+    claims = _decode_jwt(_parse_bearer(authorization))
+    cache = getattr(request.app.state, "cache", None)
+    owned_cache = cache is None
+    if owned_cache:
+        url = os.environ.get("CACHE_URL")
+        if not url:
+            raise HTTPException(status_code=503, detail="Session validation unavailable")
+        cache = CacheClient(RedisCache(url))
+    try:
+        if owned_cache:
+            await cache.connect()
+        revoked = await cache.exists(f"blacklist:{claims['jti']}")
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Session validation unavailable") from exc
+    finally:
+        if owned_cache:
+            await cache.close()
+    if revoked:
+        raise HTTPException(status_code=401, detail="Token has been revoked")
+
+
+async def check_access_revocation(
+    request: Request,
+    authorization: str | None = Header(None, alias="Authorization"),
+) -> None:
+    await _check_revocation(request, authorization)
+
+
+async def check_user_revocation(
+    request: Request,
+    authorization: str | None = Header(None, alias="Authorization"),
+    x_service_key: str | None = Header(None, alias="X-Service-Key"),
+) -> None:
+    if x_service_key is not None and x_service_key == get_service_api_key():
+        return
+    await _check_revocation(request, authorization)
+
+
+def verify_jwt(
+    authorization: str | None = Header(None, alias="Authorization"),
+    _revocation: None = Depends(check_access_revocation),
+) -> AuthContext:
     """Authenticate an end user via ``Authorization: Bearer <jwt>``.
 
     Returns an AuthContext with ``candidate_id`` from the 'sub' claim and
@@ -97,9 +152,7 @@ def verify_service_key(
     is acting on behalf of. Returns an AuthContext with ``is_service=True``.
     """
     if x_service_key is None or x_service_key != get_service_api_key():
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Invalid service key"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid service key")
     candidate_id = _coerce_optional_candidate_id(x_candidate_id)
     return AuthContext(candidate_id=candidate_id, is_service=True, claims={})
 
@@ -108,6 +161,7 @@ def verify_jwt_or_service(
     authorization: str | None = Header(None, alias="Authorization"),
     x_service_key: str | None = Header(None, alias="X-Service-Key"),
     x_candidate_id: str | None = Header(None, alias="X-Candidate-Id"),
+    _revocation: None = Depends(check_user_revocation),
 ) -> AuthContext:
     """Accept either a valid service key OR a JWT.
 
@@ -125,6 +179,7 @@ def verify_candidate_access(
     candidate_id: int,
     authorization: str | None = Header(None, alias="Authorization"),
     x_service_key: str | None = Header(None, alias="X-Service-Key"),
+    _revocation: None = Depends(check_user_revocation),
 ) -> AuthContext:
     """Guard a ``/candidates/{candidate_id}/...`` route.
 

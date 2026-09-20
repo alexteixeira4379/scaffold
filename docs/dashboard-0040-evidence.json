@@ -1,0 +1,12 @@
+{
+  "mysql": "8.0.46",
+  "image": "sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b",
+  "migration_sha256": "bc86e0ebdd9850e42ea0fdc1f1c3bced746c1b5c18cf61d30602c2b276d0c761",
+  "baseline": "0039",
+  "final_revision": "0040",
+  "test_result": "11 passed in 21.64s",
+  "scope": "Disposable Docker MySQL; full chain from empty DB to 0039, upgrade/downgrade/re-upgrade 0040; no production access",
+  "scaffold_base_commit": "484f6a0a560766a79a8e394657329343c5905cf1",
+  "upgrade_sql_sha256": "ec14c6b3f3ec15692d2f27d84bc5682fc5f32dfeeec51e0b580d8f8cb43a7952",
+  "downgrade_sql_sha256": "ee6ac9565d5e81d942a565aae0da565d8bfe5bc85b336bcc2bad8e5173e3a15e"
+}

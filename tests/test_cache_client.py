@@ -50,3 +50,31 @@ def test_cache_backend_requires_cache_url() -> None:
 
     with pytest.raises(ValueError, match="cache_url is required"):
         create_cache_backend(settings)
+
+
+@pytest.mark.asyncio
+async def test_getdel_has_one_winner_and_honors_expiry(monkeypatch):
+    import asyncio
+
+    backend = InMemoryCache()
+    cache = CacheClient(backend)
+    await cache.set("one-use", "42", ttl_s=10)
+    results = await asyncio.gather(*(cache.getdel("one-use") for _ in range(20)))
+    assert results.count("42") == 1
+    assert results.count(None) == 19
+    await cache.set("expired", "42", ttl_s=1)
+    monkeypatch.setattr("scaffold.cache.memory.monotonic", lambda: float("inf"))
+    assert await cache.getdel("expired") is None
+
+
+@pytest.mark.asyncio
+async def test_redis_consumes_with_single_getdel_command():
+    from unittest.mock import AsyncMock
+
+    backend = RedisCache("redis://unused")
+    backend._client = AsyncMock()
+    backend._client.getdel.return_value = "42"
+    assert await CacheClient(backend).getdel("token") == "42"
+    backend._client.getdel.assert_awaited_once_with("token")
+    backend._client.get.assert_not_awaited()
+    backend._client.delete.assert_not_awaited()

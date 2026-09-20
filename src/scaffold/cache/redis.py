@@ -30,6 +30,9 @@ class RedisCache:
     async def get(self, key: str) -> str | None:
         return await self._redis.get(key)
 
+    async def getdel(self, key: str) -> str | None:
+        return await self._redis.getdel(key)
+
     async def set(self, key: str, value: str, *, ttl_s: int | None = None) -> None:
         self._validate_ttl(ttl_s)
         await self._redis.set(key, value, ex=ttl_s)

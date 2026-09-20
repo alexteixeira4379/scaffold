@@ -30,6 +30,7 @@ def _env(monkeypatch):
 
 def _make_token(sub, secret=SECRET, exp_offset=3600, **extra):
     payload = {"sub": sub, "iat": int(time.time()), "exp": int(time.time()) + exp_offset}
+    payload["jti"] = "test-jti"
     payload.update(extra)
     return jwt.encode(payload, secret, algorithm=JWT_ALGORITHM)
 
@@ -121,17 +122,13 @@ def test_verify_service_key_invalid_candidate_id():
 
 
 def test_jwt_or_service_prefers_service_key():
-    ctx = verify_jwt_or_service(
-        authorization=None, x_service_key=SERVICE_KEY, x_candidate_id="9"
-    )
+    ctx = verify_jwt_or_service(authorization=None, x_service_key=SERVICE_KEY, x_candidate_id="9")
     assert ctx.is_service is True
     assert ctx.candidate_id == 9
 
 
 def test_jwt_or_service_falls_back_to_jwt():
-    ctx = verify_jwt_or_service(
-        authorization=f"Bearer {_make_token('5')}", x_service_key=None
-    )
+    ctx = verify_jwt_or_service(authorization=f"Bearer {_make_token('5')}", x_service_key=None)
     assert ctx.is_service is False
     assert ctx.candidate_id == 5
 
@@ -152,18 +149,14 @@ def test_candidate_access_service_key_any_candidate():
 
 
 def test_candidate_access_jwt_match():
-    ctx = verify_candidate_access(
-        candidate_id=42, authorization=f"Bearer {_make_token('42')}"
-    )
+    ctx = verify_candidate_access(candidate_id=42, authorization=f"Bearer {_make_token('42')}")
     assert ctx.candidate_id == 42
     assert ctx.is_service is False
 
 
 def test_candidate_access_jwt_mismatch():
     with pytest.raises(HTTPException) as exc:
-        verify_candidate_access(
-            candidate_id=99, authorization=f"Bearer {_make_token('42')}"
-        )
+        verify_candidate_access(candidate_id=99, authorization=f"Bearer {_make_token('42')}")
     assert exc.value.status_code == 403
 
 

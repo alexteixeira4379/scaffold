@@ -1,0 +1,1114 @@
+diff --git a/src/scaffold/auth/dependencies.py b/src/scaffold/auth/dependencies.py
+index 9c53953..9ee266c 100644
+--- a/src/scaffold/auth/dependencies.py
++++ b/src/scaffold/auth/dependencies.py
+@@ -20,7 +20,9 @@ from __future__ import annotations
+ import os
+ 
+ import jwt
+-from fastapi import Header, HTTPException, status
++from fastapi import Depends, Header, HTTPException, Request, status
++from scaffold.cache import CacheClient
++from scaffold.cache.redis import RedisCache
+ 
+ from scaffold.auth.context import AuthContext
+ from scaffold.auth.token_service import JWT_ALGORITHM
+@@ -36,7 +38,15 @@ def get_service_api_key() -> str:
+ 
+ def _decode_jwt(token: str) -> dict:
+     try:
+-        return jwt.decode(token, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
++        claims = jwt.decode(
++            token,
++            get_jwt_secret(),
++            algorithms=[JWT_ALGORITHM],
++            options={"require": ["exp", "sub", "iat", "jti"]},
++        )
++        if claims.get("type", "access") != "access" or not claims.get("jti"):
++            raise jwt.InvalidTokenError("Access token required")
++        return claims
+     except jwt.ExpiredSignatureError as exc:
+         raise HTTPException(
+             status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired"
+@@ -54,7 +64,10 @@ def _candidate_id_from_claims(claims: dict) -> int:
+             status_code=status.HTTP_401_UNAUTHORIZED, detail="Token missing 'sub' claim"
+         )
+     try:
+-        return int(sub)
++        candidate_id = int(sub)
++        if candidate_id <= 0:
++            raise ValueError("Invalid candidate")
++        return candidate_id
+     except (TypeError, ValueError) as exc:
+         raise HTTPException(
+             status_code=status.HTTP_401_UNAUTHORIZED,
+@@ -75,7 +88,49 @@ def _parse_bearer(authorization: str | None) -> str:
+     return parts[1]
+ 
+ 
+-def verify_jwt(authorization: str | None = Header(None, alias="Authorization")) -> AuthContext:
++async def _check_revocation(request: Request, authorization: str | None) -> None:
++    claims = _decode_jwt(_parse_bearer(authorization))
++    cache = getattr(request.app.state, "cache", None)
++    owned_cache = cache is None
++    if owned_cache:
++        url = os.environ.get("CACHE_URL")
++        if not url:
++            raise HTTPException(status_code=503, detail="Session validation unavailable")
++        cache = CacheClient(RedisCache(url))
++    try:
++        if owned_cache:
++            await cache.connect()
++        revoked = await cache.exists(f"blacklist:{claims['jti']}")
++    except Exception as exc:
++        raise HTTPException(status_code=503, detail="Session validation unavailable") from exc
++    finally:
++        if owned_cache:
++            await cache.close()
++    if revoked:
++        raise HTTPException(status_code=401, detail="Token has been revoked")
++
++
++async def check_access_revocation(
++    request: Request,
++    authorization: str | None = Header(None, alias="Authorization"),
++) -> None:
++    await _check_revocation(request, authorization)
++
++
++async def check_user_revocation(
++    request: Request,
++    authorization: str | None = Header(None, alias="Authorization"),
++    x_service_key: str | None = Header(None, alias="X-Service-Key"),
++) -> None:
++    if x_service_key is not None and x_service_key == get_service_api_key():
++        return
++    await _check_revocation(request, authorization)
++
++
++def verify_jwt(
++    authorization: str | None = Header(None, alias="Authorization"),
++    _revocation: None = Depends(check_access_revocation),
++) -> AuthContext:
+     """Authenticate an end user via ``Authorization: Bearer <jwt>``.
+ 
+     Returns an AuthContext with ``candidate_id`` from the 'sub' claim and
+@@ -97,9 +152,7 @@ def verify_service_key(
+     is acting on behalf of. Returns an AuthContext with ``is_service=True``.
+     """
+     if x_service_key is None or x_service_key != get_service_api_key():
+-        raise HTTPException(
+-            status_code=status.HTTP_403_FORBIDDEN, detail="Invalid service key"
+-        )
++        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid service key")
+     candidate_id = _coerce_optional_candidate_id(x_candidate_id)
+     return AuthContext(candidate_id=candidate_id, is_service=True, claims={})
+ 
+@@ -108,6 +161,7 @@ def verify_jwt_or_service(
+     authorization: str | None = Header(None, alias="Authorization"),
+     x_service_key: str | None = Header(None, alias="X-Service-Key"),
+     x_candidate_id: str | None = Header(None, alias="X-Candidate-Id"),
++    _revocation: None = Depends(check_user_revocation),
+ ) -> AuthContext:
+     """Accept either a valid service key OR a JWT.
+ 
+@@ -125,6 +179,7 @@ def verify_candidate_access(
+     candidate_id: int,
+     authorization: str | None = Header(None, alias="Authorization"),
+     x_service_key: str | None = Header(None, alias="X-Service-Key"),
++    _revocation: None = Depends(check_user_revocation),
+ ) -> AuthContext:
+     """Guard a ``/candidates/{candidate_id}/...`` route.
+ 
+diff --git a/src/scaffold/auth/token_service.py b/src/scaffold/auth/token_service.py
+index e59f818..eefa487 100644
+--- a/src/scaffold/auth/token_service.py
++++ b/src/scaffold/auth/token_service.py
+@@ -39,6 +39,7 @@ class TokenService:
+             "exp": exp,
+             "iat": now,
+             "jti": jti,
++            "type": "access",
+         }
+         token = jwt.encode(payload, self._secret, algorithm=self._algorithm)
+         return token, jti, self._access_expire_minutes * 60
+@@ -97,6 +98,20 @@ class TokenService:
+ 
+         return candidate_id, jti
+ 
++    async def consume_refresh_token(self, cache: Any, token: str) -> tuple[int, str] | None:
++        """Atomically validate and consume a refresh token before rotation."""
++        try:
++            payload = self.decode_token(token)
++            if payload.get("type") != "refresh" or not payload.get("jti"):
++                return None
++            candidate_id = int(payload["sub"])
++        except (jwt.InvalidTokenError, KeyError, TypeError, ValueError):
++            return None
++        stored = await cache.getdel(f"refresh:{payload['jti']}")
++        if stored != str(candidate_id):
++            return None
++        return candidate_id, payload["jti"]
++
+     async def revoke_refresh_token(self, cache: Any, jti: str) -> None:
+         """Remove refresh token from cache (revocation)."""
+         await cache.delete(f"refresh:{jti}")
+diff --git a/src/scaffold/cache/client.py b/src/scaffold/cache/client.py
+index 43d49eb..5a0584e 100644
+--- a/src/scaffold/cache/client.py
++++ b/src/scaffold/cache/client.py
+@@ -22,6 +22,10 @@ class CacheClient:
+     async def get(self, key: str) -> str | None:
+         return await self._backend.get(key)
+ 
++    async def getdel(self, key: str) -> str | None:
++        """Read and consume a value atomically (single-use credentials)."""
++        return await self._backend.getdel(key)
++
+     async def set(self, key: str, value: str, *, ttl_s: int | None = None) -> None:
+         await self._backend.set(key, value, ttl_s=ttl_s)
+ 
+diff --git a/src/scaffold/cache/memory.py b/src/scaffold/cache/memory.py
+index ccf1d2e..762bea3 100644
+--- a/src/scaffold/cache/memory.py
++++ b/src/scaffold/cache/memory.py
+@@ -24,6 +24,12 @@ class InMemoryCache:
+         value, _expires_at = record
+         return value
+ 
++    async def getdel(self, key: str) -> str | None:
++        # No await between expiry check and removal: atomic in the event loop.
++        record = self._get_record(key)
++        self._values.pop(key, None)
++        return record[0] if record is not None else None
++
+     async def set(self, key: str, value: str, *, ttl_s: int | None = None) -> None:
+         self._values[key] = (value, self._expires_at(ttl_s))
+ 
+diff --git a/src/scaffold/cache/ports.py b/src/scaffold/cache/ports.py
+index b853185..98ca32e 100644
+--- a/src/scaffold/cache/ports.py
++++ b/src/scaffold/cache/ports.py
+@@ -13,6 +13,8 @@ class CachePort(Protocol):
+ 
+     async def get(self, key: str) -> str | None: ...
+ 
++    async def getdel(self, key: str) -> str | None: ...
++
+     async def set(self, key: str, value: str, *, ttl_s: int | None = None) -> None: ...
+ 
+     async def get_json(self, key: str) -> JsonValue | None: ...
+diff --git a/src/scaffold/cache/redis.py b/src/scaffold/cache/redis.py
+index 9e9ef18..73f442a 100644
+--- a/src/scaffold/cache/redis.py
++++ b/src/scaffold/cache/redis.py
+@@ -30,6 +30,9 @@ class RedisCache:
+     async def get(self, key: str) -> str | None:
+         return await self._redis.get(key)
+ 
++    async def getdel(self, key: str) -> str | None:
++        return await self._redis.getdel(key)
++
+     async def set(self, key: str, value: str, *, ttl_s: int | None = None) -> None:
+         self._validate_ttl(ttl_s)
+         await self._redis.set(key, value, ex=ttl_s)
+diff --git a/tests/test_auth.py b/tests/test_auth.py
+index 7a63de5..1310488 100644
+--- a/tests/test_auth.py
++++ b/tests/test_auth.py
+@@ -30,6 +30,7 @@ def _env(monkeypatch):
+ 
+ def _make_token(sub, secret=SECRET, exp_offset=3600, **extra):
+     payload = {"sub": sub, "iat": int(time.time()), "exp": int(time.time()) + exp_offset}
++    payload["jti"] = "test-jti"
+     payload.update(extra)
+     return jwt.encode(payload, secret, algorithm=JWT_ALGORITHM)
+ 
+@@ -121,17 +122,13 @@ def test_verify_service_key_invalid_candidate_id():
+ 
+ 
+ def test_jwt_or_service_prefers_service_key():
+-    ctx = verify_jwt_or_service(
+-        authorization=None, x_service_key=SERVICE_KEY, x_candidate_id="9"
+-    )
++    ctx = verify_jwt_or_service(authorization=None, x_service_key=SERVICE_KEY, x_candidate_id="9")
+     assert ctx.is_service is True
+     assert ctx.candidate_id == 9
+ 
+ 
+ def test_jwt_or_service_falls_back_to_jwt():
+-    ctx = verify_jwt_or_service(
+-        authorization=f"Bearer {_make_token('5')}", x_service_key=None
+-    )
++    ctx = verify_jwt_or_service(authorization=f"Bearer {_make_token('5')}", x_service_key=None)
+     assert ctx.is_service is False
+     assert ctx.candidate_id == 5
+ 
+@@ -152,18 +149,14 @@ def test_candidate_access_service_key_any_candidate():
+ 
+ 
+ def test_candidate_access_jwt_match():
+-    ctx = verify_candidate_access(
+-        candidate_id=42, authorization=f"Bearer {_make_token('42')}"
+-    )
++    ctx = verify_candidate_access(candidate_id=42, authorization=f"Bearer {_make_token('42')}")
+     assert ctx.candidate_id == 42
+     assert ctx.is_service is False
+ 
+ 
+ def test_candidate_access_jwt_mismatch():
+     with pytest.raises(HTTPException) as exc:
+-        verify_candidate_access(
+-            candidate_id=99, authorization=f"Bearer {_make_token('42')}"
+-        )
++        verify_candidate_access(candidate_id=99, authorization=f"Bearer {_make_token('42')}")
+     assert exc.value.status_code == 403
+ 
+ 
+diff --git a/tests/test_cache_client.py b/tests/test_cache_client.py
+index 18bd32b..88f36b2 100644
+--- a/tests/test_cache_client.py
++++ b/tests/test_cache_client.py
+@@ -50,3 +50,31 @@ def test_cache_backend_requires_cache_url() -> None:
+ 
+     with pytest.raises(ValueError, match="cache_url is required"):
+         create_cache_backend(settings)
++
++
++@pytest.mark.asyncio
++async def test_getdel_has_one_winner_and_honors_expiry(monkeypatch):
++    import asyncio
++
++    backend = InMemoryCache()
++    cache = CacheClient(backend)
++    await cache.set("one-use", "42", ttl_s=10)
++    results = await asyncio.gather(*(cache.getdel("one-use") for _ in range(20)))
++    assert results.count("42") == 1
++    assert results.count(None) == 19
++    await cache.set("expired", "42", ttl_s=1)
++    monkeypatch.setattr("scaffold.cache.memory.monotonic", lambda: float("inf"))
++    assert await cache.getdel("expired") is None
++
++
++@pytest.mark.asyncio
++async def test_redis_consumes_with_single_getdel_command():
++    from unittest.mock import AsyncMock
++
++    backend = RedisCache("redis://unused")
++    backend._client = AsyncMock()
++    backend._client.getdel.return_value = "42"
++    assert await CacheClient(backend).getdel("token") == "42"
++    backend._client.getdel.assert_awaited_once_with("token")
++    backend._client.get.assert_not_awaited()
++    backend._client.delete.assert_not_awaited()
+diff --git a/migrations/core/versions/0040_dashboard_persistence.py b/migrations/core/versions/0040_dashboard_persistence.py
+new file mode 100644
+index 0000000..0b125cc
+--- /dev/null
++++ b/migrations/core/versions/0040_dashboard_persistence.py
+@@ -0,0 +1,243 @@
++"""Add verified identities and persistent dashboard data (approved local DDL).
++
++Revision ID: 0040
++Revises: 0039
++
++Frozen SQL: do not import current application models. MySQL DDL commits
++implicitly; run preflight before the first statement and stop on any error.
++Production application and publishing scaffold require separate approval.
++"""
++
++from __future__ import annotations
++
++import re
++
++import sqlalchemy as sa
++from alembic import op
++
++revision = "0040"
++down_revision = "0039"
++branch_labels = None
++depends_on = None
++
++NEW_TABLES = (
++    "auth_verified_identities",
++    "candidate_notification_preferences",
++    "job_candidate_preferences",
++    "resume_personas",
++)
++NEW_COLUMNS = {
++    "candidate_preferences": ("reviewed_at",),
++    "candidate_target_profiles": ("notes", "archived_at"),
++    "resume_profiles": ("headline", "portfolio_url", "reviewed_sections", "revision"),
++    "resume_versions": ("target_profile_id", "archived_at", "current_scope"),
++}
++NEW_INDEXES = {
++    "candidate_target_profiles": ("uq_target_candidate_id", "ix_target_candidate_archived"),
++    "resume_versions": ("ix_resume_owned_target", "ix_resume_session", "uq_resume_current_scope"),
++}
++
++
++def preflight(bind) -> None:
++    """Only reads. Reject data conflicts/drift before any implicit DDL commit."""
++    if bind.dialect.name != "mysql":
++        raise RuntimeError("0040 requires MySQL 8.0.16 or later")
++    version = bind.execute(sa.text("SELECT VERSION()")).scalar_one()
++    match = re.match(r"(\d+)\.(\d+)\.(\d+)", version)
++    if "mariadb" in version.lower() or not match or tuple(map(int, match.groups())) < (8, 0, 16):
++        raise RuntimeError("0040 requires MySQL >= 8.0.16 with enforced CHECK constraints")
++    inspector = sa.inspect(bind)
++    tables = set(inspector.get_table_names())
++    partial = sorted(tables.intersection(NEW_TABLES))
++    if partial:
++        raise RuntimeError(
++            f"0040 found existing/partial objects: {partial}; reconcile before retry"
++        )
++    required = set(NEW_COLUMNS) | {"candidates", "jobs", "resume_build_sessions"}
++    missing = sorted(required - tables)
++    if missing:
++        raise RuntimeError(f"0040 missing baseline tables: {missing}")
++    for table, additions in NEW_COLUMNS.items():
++        existing = {c["name"] for c in inspector.get_columns(table)}
++        collision = existing.intersection(additions)
++        if collision:
++            raise RuntimeError(
++                f"0040 found existing/partial columns in {table}: {sorted(collision)}"
++            )
++    for table, additions in NEW_INDEXES.items():
++        existing = {index["name"] for index in inspector.get_indexes(table)}
++        if existing.intersection(additions):
++            raise RuntimeError(f"0040 found existing/partial indexes in {table}")
++    for parent in ("candidates", "jobs", "candidate_target_profiles"):
++        column = next(c for c in inspector.get_columns(parent) if c["name"] == "id")
++        if not isinstance(column["type"], sa.BigInteger) or getattr(
++            column["type"], "unsigned", False
++        ):
++            raise RuntimeError(f"0040 expected signed BIGINT {parent}.id")
++    checks = {
++        "multiple current resumes": "SELECT candidate_id FROM resume_versions WHERE is_current = 1 GROUP BY candidate_id HAVING COUNT(*) > 1",
++        "multiple primary targets": "SELECT candidate_id FROM candidate_target_profiles WHERE is_default = 1 GROUP BY candidate_id HAVING COUNT(*) > 1",
++    }
++    for table in (
++        "candidate_preferences",
++        "candidate_target_profiles",
++        "resume_profiles",
++        "resume_versions",
++    ):
++        checks[f"orphan candidate in {table}"] = (
++            f"SELECT child.id FROM {table} child LEFT JOIN candidates parent "
++            "ON parent.id = child.candidate_id WHERE parent.id IS NULL"
++        )
++    checks["orphan resume session"] = (
++        "SELECT child.id FROM resume_versions child LEFT JOIN resume_build_sessions parent "
++        "ON parent.id = child.session_id WHERE child.session_id IS NOT NULL AND parent.id IS NULL"
++    )
++    for label, query in checks.items():
++        conflicts = list(bind.execute(sa.text(query + " LIMIT 20")).scalars())
++        if conflicts:
++            raise RuntimeError(
++                f"0040 preflight: {label}; IDs (first 20): {conflicts}; no DDL applied"
++            )
++
++
++# Exact statements from the approved proposal, frozen for repeatable review.
++UPGRADE_SQL = (
++    """CREATE TABLE auth_verified_identities (
++  id BIGINT NOT NULL AUTO_INCREMENT,
++  candidate_id BIGINT NOT NULL,
++  channel ENUM('email', 'whatsapp') NOT NULL,
++  normalized_value VARCHAR(320) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
++  verified_at DATETIME(6) NOT NULL,
++  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
++  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
++  PRIMARY KEY (id),
++  UNIQUE KEY uq_auth_identity_channel_value (channel, normalized_value),
++  UNIQUE KEY uq_auth_identity_candidate_channel (candidate_id, channel),
++  CONSTRAINT fk_auth_identity_candidate FOREIGN KEY (candidate_id) REFERENCES candidates(id)
++) ENGINE=InnoDB""",
++    """CREATE TABLE candidate_notification_preferences (
++  id BIGINT NOT NULL AUTO_INCREMENT,
++  candidate_id BIGINT NOT NULL,
++  topic VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
++  channel ENUM('email', 'whatsapp') NOT NULL,
++  enabled BOOLEAN NOT NULL,
++  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
++  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
++  PRIMARY KEY (id),
++  UNIQUE KEY uq_notification_candidate_topic_channel (candidate_id, topic, channel),
++  CONSTRAINT fk_notification_preference_candidate FOREIGN KEY (candidate_id) REFERENCES candidates(id)
++) ENGINE=InnoDB""",
++    """CREATE TABLE job_candidate_preferences (
++  candidate_id BIGINT NOT NULL,
++  job_id BIGINT NOT NULL,
++  saved BOOLEAN NOT NULL DEFAULT FALSE,
++  dismissed BOOLEAN NOT NULL DEFAULT FALSE,
++  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
++  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
++  PRIMARY KEY (candidate_id, job_id),
++  KEY ix_job_preference_job (job_id),
++  KEY ix_job_preference_saved (candidate_id, saved, updated_at),
++  KEY ix_job_preference_dismissed (candidate_id, dismissed, updated_at),
++  CONSTRAINT fk_job_preference_candidate FOREIGN KEY (candidate_id) REFERENCES candidates(id),
++  CONSTRAINT fk_job_preference_job FOREIGN KEY (job_id) REFERENCES jobs(id)
++) ENGINE=InnoDB""",
++    """ALTER TABLE candidate_preferences
++  ADD COLUMN reviewed_at DATETIME(6) NULL""",
++    """ALTER TABLE candidate_target_profiles
++  ADD COLUMN notes TEXT NULL,
++  ADD COLUMN archived_at DATETIME(6) NULL,
++  ADD UNIQUE KEY uq_target_candidate_id (candidate_id, id),
++  ADD KEY ix_target_candidate_archived (candidate_id, archived_at)""",
++    """CREATE TABLE resume_personas (
++  id BIGINT NOT NULL AUTO_INCREMENT,
++  candidate_id BIGINT NOT NULL,
++  target_profile_id BIGINT NOT NULL,
++  enabled BOOLEAN NOT NULL DEFAULT FALSE,
++  content JSON NOT NULL,
++  revision BIGINT UNSIGNED NOT NULL DEFAULT 1,
++  source_updated_at DATETIME(6) NULL,
++  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
++  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
++  PRIMARY KEY (id),
++  UNIQUE KEY uq_resume_persona_target (target_profile_id),
++  KEY ix_persona_candidate_target (candidate_id, target_profile_id),
++  CONSTRAINT fk_persona_candidate FOREIGN KEY (candidate_id) REFERENCES candidates(id),
++  CONSTRAINT fk_persona_owned_target FOREIGN KEY (candidate_id, target_profile_id)
++    REFERENCES candidate_target_profiles(candidate_id, id),
++  CONSTRAINT ck_persona_revision CHECK (revision >= 1),
++  CONSTRAINT ck_persona_content_object CHECK (JSON_TYPE(content) = 'OBJECT')
++) ENGINE=InnoDB""",
++    """ALTER TABLE resume_profiles
++  ADD COLUMN headline VARCHAR(255) NULL,
++  ADD COLUMN portfolio_url TEXT NULL,
++  ADD COLUMN reviewed_sections JSON NULL,
++  ADD COLUMN revision BIGINT UNSIGNED NOT NULL DEFAULT 1,
++  ADD CONSTRAINT ck_resume_revision CHECK (revision >= 1),
++  ADD CONSTRAINT ck_resume_reviewed_array CHECK (
++    reviewed_sections IS NULL OR JSON_TYPE(reviewed_sections) = 'ARRAY'
++  )""",
++    """ALTER TABLE resume_versions
++  ADD COLUMN target_profile_id BIGINT NULL,
++  ADD COLUMN archived_at DATETIME(6) NULL,
++  ADD COLUMN current_scope BIGINT GENERATED ALWAYS AS (
++    CASE WHEN is_current = 1 AND archived_at IS NULL
++      THEN COALESCE(target_profile_id, 0) ELSE NULL END
++  ) STORED,
++  ADD KEY ix_resume_owned_target (candidate_id, target_profile_id),
++  ADD KEY ix_resume_session (session_id),
++  ADD CONSTRAINT fk_resume_owned_target FOREIGN KEY (candidate_id, target_profile_id)
++    REFERENCES candidate_target_profiles(candidate_id, id),
++  ADD UNIQUE KEY uq_resume_current_scope (candidate_id, current_scope)""",
++)
++
++DOWNGRADE_SQL = (
++    "DROP TABLE resume_personas",
++    "DROP TABLE job_candidate_preferences",
++    "DROP TABLE candidate_notification_preferences",
++    "DROP TABLE auth_verified_identities",
++    """ALTER TABLE resume_versions
++       DROP FOREIGN KEY fk_resume_owned_target,
++       DROP FOREIGN KEY fk_resume_versions_session_id_resume_build_sessions,
++       DROP INDEX uq_resume_current_scope,
++       DROP INDEX ix_resume_owned_target,
++       DROP INDEX ix_resume_session,
++       DROP COLUMN current_scope,
++       DROP COLUMN target_profile_id,
++       DROP COLUMN archived_at""",
++    """ALTER TABLE resume_versions
++       ADD CONSTRAINT fk_resume_versions_session_id_resume_build_sessions
++         FOREIGN KEY (session_id) REFERENCES resume_build_sessions(id)""",
++    """ALTER TABLE resume_profiles
++       DROP CHECK ck_resume_reviewed_array,
++       DROP CHECK ck_resume_revision,
++       DROP COLUMN revision,
++       DROP COLUMN reviewed_sections,
++       DROP COLUMN portfolio_url,
++       DROP COLUMN headline""",
++    """ALTER TABLE candidate_target_profiles
++       DROP INDEX ix_target_candidate_archived,
++       DROP INDEX uq_target_candidate_id,
++       DROP COLUMN archived_at,
++       DROP COLUMN notes""",
++    "ALTER TABLE candidate_preferences DROP COLUMN reviewed_at",
++)
++
++
++def upgrade() -> None:
++    if op.get_context().as_sql:
++        op.execute("-- REVIEW ONLY: online preflight must pass before executing this DDL")
++    else:
++        preflight(op.get_bind())
++    for statement in UPGRADE_SQL:
++        op.execute(sa.text(statement))
++
++
++def downgrade() -> None:
++    # Destructive to new dashboard data; production rollback should retain
++    # the additive schema. Exercised only on an isolated database in this task.
++    # Recreate the original session FK in the following ALTER so InnoDB
++    # restores its implicit supporting index. MySQL rejects dropping and
++    # re-adding a named FK in one ALTER (1826). All writers must be stopped
++    # for downgrade; retaining the additive schema is preferred in production.
++    for statement in DOWNGRADE_SQL:
++        op.execute(sa.text(statement))
+diff --git a/tests/integration/test_dashboard_migration_mysql.py b/tests/integration/test_dashboard_migration_mysql.py
+new file mode 100644
+index 0000000..98c015d
+--- /dev/null
++++ b/tests/integration/test_dashboard_migration_mysql.py
+@@ -0,0 +1,477 @@
++"""Opt-in, disposable MySQL test; never accepts a supplied database URL.
++
++RUN_DASHBOARD_MYSQL_TESTS=1 PYTHONPATH=src .venv/bin/pytest \
++    tests/integration/test_dashboard_migration_mysql.py -v
++
++Creates its own Docker network/container, replays all historical migrations,
++then exercises 0040. No production credentials or existing DBs are used.
++"""
++
++from __future__ import annotations
++
++import hashlib
++import importlib.util
++import json
++import os
++from pathlib import Path
++import re
++import subprocess
++import sys
++import time
++from concurrent.futures import ThreadPoolExecutor
++from threading import Barrier
++from uuid import uuid4
++
++import pytest
++import sqlalchemy as sa
++from sqlalchemy.exc import IntegrityError, OperationalError
++
++ROOT = Path(__file__).resolve().parents[2]
++MIGRATION = ROOT / "migrations/core/versions/0040_dashboard_persistence.py"
++pytestmark = pytest.mark.skipif(
++    os.environ.get("RUN_DASHBOARD_MYSQL_TESTS") != "1",
++    reason="Explicit opt-in required to start disposable MySQL",
++)
++
++
++def docker(*args):
++    return subprocess.check_output(["docker", *args], text=True).strip()
++
++
++def load_migration():
++    spec = importlib.util.spec_from_file_location("dashboard_migration_0040", MIGRATION)
++    module = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(module)
++    return module
++
++
++def snapshot(connection):
++    result = {}
++    for table in sa.inspect(connection).get_table_names():
++        ddl = connection.exec_driver_sql(f"SHOW CREATE TABLE `{table}`").one()[1]
++        # SHOW CREATE orders indexes by creation time; restoring an implicit
++        # FK index may move its line without changing any schema definition.
++        ddl = re.sub(r" AUTO_INCREMENT=\d+", "", ddl)
++        result[table] = sorted(line.rstrip(",") for line in ddl.splitlines())
++    return result
++
++
++def alembic(url, *args, check=True):
++    result = subprocess.run(
++        [sys.executable, "-m", "alembic", "-c", "alembic.core.ini", *args],
++        cwd=ROOT,
++        env={
++            "PATH": os.environ["PATH"],
++            "PYTHONPATH": str(ROOT / "src"),
++            "DATABASE_URL": url,
++            "DATABASE_URL_SYNC": url,
++        },
++        text=True,
++        stdout=subprocess.PIPE,
++        stderr=subprocess.STDOUT,
++        timeout=120,
++    )
++    if check:
++        assert result.returncode == 0, result.stdout
++    return result
++
++
++@pytest.fixture(scope="module")
++def database(tmp_path_factory):
++    name = f"jobito-dashboard-mysql-test-{uuid4().hex[:10]}"
++    network = f"{name}-network"
++    evidence = tmp_path_factory.mktemp("dashboard-migration-evidence")
++    engine = None
++    docker("network", "create", "--internal", network)
++    try:
++        docker(
++            "run",
++            "--detach",
++            "--rm",
++            "--name",
++            name,
++            "--network",
++            network,
++            "--tmpfs",
++            "/var/lib/mysql",
++            "-e",
++            "MYSQL_ROOT_PASSWORD=isolated-test-only",
++            "-e",
++            "MYSQL_DATABASE=dashboard_migration_test",
++            "mysql:8.0",
++            "--character-set-server=utf8mb4",
++            "--collation-server=utf8mb4_0900_ai_ci",
++        )
++        details = json.loads(docker("inspect", name))[0]
++        host = details["NetworkSettings"]["Networks"][network]["IPAddress"]
++        url = f"mysql+pymysql://root:isolated-test-only@{host}:3306/dashboard_migration_test?charset=utf8mb4"
++        engine = sa.create_engine(url, connect_args={"connect_timeout": 2})
++        deadline = time.monotonic() + 60
++        while True:
++            try:
++                with engine.connect() as connection:
++                    version = connection.exec_driver_sql("SELECT VERSION()").scalar_one()
++                break
++            except OperationalError:
++                if time.monotonic() >= deadline:
++                    raise
++                time.sleep(0.3)
++        bootstrap = alembic(url, "upgrade", "0039")
++        (evidence / "bootstrap.log").write_text(bootstrap.stdout)
++        with engine.begin() as connection:
++            for candidate in (900001, 900002):
++                connection.exec_driver_sql(
++                    "INSERT INTO candidates (id, full_name, email) VALUES (%s, %s, %s)",
++                    (candidate, f"Controlled candidate {candidate}", f"{candidate}@example.test"),
++                )
++                connection.exec_driver_sql(
++                    "INSERT INTO candidate_preferences (candidate_id) VALUES (%s)", (candidate,)
++                )
++                connection.exec_driver_sql(
++                    "INSERT INTO candidate_target_profiles (id,candidate_id,name,is_default) VALUES (%s,%s,'Target',1)",
++                    (candidate, candidate),
++                )
++                connection.exec_driver_sql(
++                    "INSERT INTO resume_profiles (candidate_id,summary,source) VALUES (%s,'Existing summary','direct_api')",
++                    (candidate,),
++                )
++            connection.exec_driver_sql(
++                "INSERT INTO jobs (id,title) VALUES (900001,'Controlled job')"
++            )
++            connection.exec_driver_sql(
++                "INSERT INTO resume_build_sessions (id,candidate_id) VALUES (900001,900001)"
++            )
++            connection.exec_driver_sql(
++                "INSERT INTO resume_versions (id,candidate_id,session_id,version_number,is_current,content,storage_url) "
++                "VALUES (900001,900001,900001,1,1,'Legacy current','https://example.test/current.pdf'),"
++                "(900002,900001,900001,0,0,'Legacy historical','https://example.test/history.pdf')"
++            )
++            baseline = snapshot(connection)
++            originals = {
++                table: list(
++                    connection.exec_driver_sql(f"SELECT * FROM {table} ORDER BY id").mappings()
++                )
++                for table in (
++                    "candidates",
++                    "candidate_preferences",
++                    "candidate_target_profiles",
++                    "resume_profiles",
++                    "resume_versions",
++                )
++            }
++        yield {
++            "url": url,
++            "engine": engine,
++            "baseline": baseline,
++            "originals": originals,
++            "evidence": evidence,
++            "version": version,
++            "image": details["Image"],
++        }
++    finally:
++        if engine is not None:
++            engine.dispose()
++        subprocess.run(["docker", "rm", "--force", name], capture_output=True)
++        subprocess.run(["docker", "network", "rm", network], capture_output=True)
++
++
++def test_01_conflicts_stop_before_any_ddl(database):
++    engine, url = database["engine"], database["url"]
++    scenarios = [
++        (
++            "INSERT INTO resume_versions (id,candidate_id,is_current) VALUES (990001,900001,1)",
++            "multiple current resumes",
++            "DELETE FROM resume_versions WHERE id=990001",
++        ),
++        (
++            "INSERT INTO candidate_target_profiles (id,candidate_id,name,is_default) VALUES (990001,900001,'Duplicate',1)",
++            "multiple primary targets",
++            "DELETE FROM candidate_target_profiles WHERE id=990001",
++        ),
++    ]
++    for insert, expected, cleanup in scenarios:
++        with engine.begin() as connection:
++            connection.exec_driver_sql(insert)
++        result = alembic(url, "upgrade", "0040", check=False)
++        assert result.returncode != 0 and expected in result.stdout
++        with engine.begin() as connection:
++            assert snapshot(connection) == database["baseline"]
++            assert (
++                connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one()
++                == "0039"
++            )
++            connection.exec_driver_sql(cleanup)
++    # Simulates legacy corruption, strictly on the disposable test DB.
++    with engine.begin() as connection:
++        connection.exec_driver_sql("SET FOREIGN_KEY_CHECKS=0")
++        connection.exec_driver_sql(
++            "INSERT INTO resume_versions (id,candidate_id) VALUES (990001,999999)"
++        )
++        connection.exec_driver_sql("SET FOREIGN_KEY_CHECKS=1")
++    result = alembic(url, "upgrade", "0040", check=False)
++    assert result.returncode != 0 and "orphan candidate in resume_versions" in result.stdout
++    with engine.begin() as connection:
++        assert snapshot(connection) == database["baseline"]
++        connection.exec_driver_sql("DELETE FROM resume_versions WHERE id=990001")
++
++
++def test_02_partial_application_is_reported_without_stamping(database):
++    migration = load_migration()
++    with database["engine"].begin() as connection:
++        connection.exec_driver_sql(migration.UPGRADE_SQL[0])
++    result = alembic(database["url"], "upgrade", "0040", check=False)
++    assert result.returncode != 0 and "existing/partial objects" in result.stdout
++    with database["engine"].begin() as connection:
++        assert (
++            connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one()
++            == "0039"
++        )
++        assert (
++            connection.exec_driver_sql("SELECT COUNT(*) FROM auth_verified_identities").scalar_one()
++            == 0
++        )
++        # Explicit recovery of the sole completed DDL, with no writes to discard.
++        connection.exec_driver_sql("DROP TABLE auth_verified_identities")
++        assert snapshot(connection) == database["baseline"]
++
++
++@pytest.fixture(scope="module")
++def upgraded(database):
++    result = alembic(database["url"], "upgrade", "0040")
++    (database["evidence"] / "upgrade.log").write_text(result.stdout)
++    with database["engine"].connect() as connection:
++        assert (
++            connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one()
++            == "0040"
++        )
++        database["upgraded_schema"] = snapshot(connection)
++        (database["evidence"] / "schema.json").write_text(
++            json.dumps(database["upgraded_schema"], indent=2)
++        )
++    return database
++
++
++@pytest.fixture
++def connection(upgraded):
++    with upgraded["engine"].connect() as connection:
++        transaction = connection.begin()
++        try:
++            yield connection
++        finally:
++            transaction.rollback()
++
++
++def test_03_existing_values_defaults_and_no_implicit_verification(connection, upgraded):
++    for table, rows in upgraded["originals"].items():
++        current = list(connection.exec_driver_sql(f"SELECT * FROM {table} ORDER BY id").mappings())
++        assert [{key: row[key] for key in rows[0]} for row in current] == [
++            dict(row) for row in rows
++        ]
++    for table in load_migration().NEW_TABLES:
++        assert connection.exec_driver_sql(f"SELECT COUNT(*) FROM {table}").scalar_one() == 0
++    for row in connection.exec_driver_sql(
++        "SELECT revision,reviewed_sections,headline,portfolio_url FROM resume_profiles"
++    ).all():
++        assert tuple(row) == (1, None, None, None)
++    assert (
++        connection.exec_driver_sql(
++            "SELECT reviewed_at FROM candidate_preferences LIMIT 1"
++        ).scalar_one()
++        is None
++    )
++    assert (
++        connection.exec_driver_sql(
++            "SELECT current_scope FROM resume_versions WHERE id=900001"
++        ).scalar_one()
++        == 0
++    )
++    assert (
++        connection.exec_driver_sql(
++            "SELECT current_scope FROM resume_versions WHERE id=900002"
++        ).scalar_one()
++        is None
++    )
++
++
++def reject(connection, statement, params=()):
++    with pytest.raises((IntegrityError, OperationalError)) as error:
++        connection.exec_driver_sql(statement, params)
++    assert error.value.orig.args[0] in (1062, 1452, 3819), str(error.value)
++
++
++def test_04_verified_identity_uniqueness(connection):
++    insert = "INSERT INTO auth_verified_identities (candidate_id,channel,normalized_value,verified_at) VALUES (%s,%s,%s,NOW())"
++    connection.exec_driver_sql(insert, (900001, "email", "verified@example.test"))
++    reject(connection, insert, (900002, "email", "verified@example.test"))
++    reject(connection, insert, (900001, "email", "other@example.test"))
++    connection.exec_driver_sql(insert, (900001, "whatsapp", "+5511999990001"))
++    reject(connection, insert, (999999, "email", "orphan@example.test"))
++
++
++def test_05_preference_keys_and_foreign_keys(connection):
++    connection.exec_driver_sql(
++        "INSERT INTO candidate_notification_preferences (candidate_id,topic,channel,enabled) VALUES (900001,'weekly_digest','email',0)"
++    )
++    reject(
++        connection,
++        "INSERT INTO candidate_notification_preferences (candidate_id,topic,channel,enabled) VALUES (900001,'weekly_digest','email',1)",
++    )
++    connection.exec_driver_sql(
++        "INSERT INTO candidate_notification_preferences (candidate_id,topic,channel,enabled) VALUES (900001,'weekly_digest','whatsapp',1)"
++    )
++    connection.exec_driver_sql(
++        "INSERT INTO job_candidate_preferences (candidate_id,job_id) VALUES (900001,900001)"
++    )
++    assert tuple(
++        connection.exec_driver_sql("SELECT saved,dismissed FROM job_candidate_preferences").one()
++    ) == (0, 0)
++    reject(
++        connection,
++        "INSERT INTO job_candidate_preferences (candidate_id,job_id) VALUES (900001,900001)",
++    )
++    reject(
++        connection,
++        "INSERT INTO job_candidate_preferences (candidate_id,job_id) VALUES (900002,999999)",
++    )
++    connection.exec_driver_sql(
++        "INSERT INTO job_candidate_preferences (candidate_id,job_id,saved) VALUES (900002,900001,1)"
++    )
++
++
++def test_06_persona_owner_uniqueness_and_snapshot_preservation(connection):
++    insert = (
++        "INSERT INTO resume_personas (candidate_id,target_profile_id,content) VALUES (%s,%s,%s)"
++    )
++    reject(connection, insert, (900001, 900002, "{}"))
++    connection.exec_driver_sql(insert, (900001, 900001, '{"summary":"Independent snapshot"}'))
++    reject(connection, insert, (900001, 900001, "{}"))
++    assert tuple(
++        connection.exec_driver_sql("SELECT enabled,revision FROM resume_personas").one()
++    ) == (0, 1)
++    connection.exec_driver_sql(
++        "UPDATE resume_profiles SET summary='Changed main' WHERE candidate_id=900001"
++    )
++    connection.exec_driver_sql("UPDATE resume_personas SET enabled=1")
++    connection.exec_driver_sql("UPDATE resume_personas SET enabled=0")
++    assert json.loads(
++        connection.exec_driver_sql("SELECT content FROM resume_personas").scalar_one()
++    ) == {"summary": "Independent snapshot"}
++    reject(connection, "UPDATE resume_personas SET revision=0")
++    # MySQL reports CHECK violations as OperationalError (3819), not IntegrityError.
++
++
++def test_07_json_checks_and_revision_checks(connection):
++    for query in (
++        "UPDATE resume_profiles SET revision=0 WHERE candidate_id=900001",
++        "UPDATE resume_profiles SET reviewed_sections=JSON_OBJECT() WHERE candidate_id=900001",
++        "INSERT INTO resume_personas (candidate_id,target_profile_id,content) VALUES (900001,900001,JSON_ARRAY())",
++    ):
++        with pytest.raises((IntegrityError, OperationalError)):
++            connection.exec_driver_sql(query)
++    connection.exec_driver_sql(
++        "UPDATE resume_profiles SET reviewed_sections=JSON_ARRAY('experiences','education') WHERE candidate_id=900001"
++    )
++
++
++def test_08_current_documents_are_unique_per_owned_scope_and_keep_history(connection):
++    insert = (
++        "INSERT INTO resume_versions (candidate_id,target_profile_id,is_current) VALUES (%s,%s,1)"
++    )
++    reject(connection, insert, (900001, None))
++    reject(connection, insert, (900001, 900002))
++    connection.exec_driver_sql(insert, (900001, 900001))
++    reject(connection, insert, (900001, 900001))
++    connection.exec_driver_sql(
++        "UPDATE resume_versions SET archived_at=NOW() WHERE target_profile_id=900001"
++    )
++    connection.exec_driver_sql(insert, (900001, 900001))
++    connection.exec_driver_sql(
++        "INSERT INTO resume_versions (candidate_id,target_profile_id,is_current) VALUES (900001,900001,0),(900001,900001,0)"
++    )
++    assert (
++        connection.exec_driver_sql(
++            "SELECT COUNT(*) FROM resume_versions WHERE archived_at IS NOT NULL"
++        ).scalar_one()
++        == 1
++    )
++    assert (
++        connection.exec_driver_sql(
++            "SELECT storage_url FROM resume_versions WHERE id=900001"
++        ).scalar_one()
++        == "https://example.test/current.pdf"
++    )
++    assert (
++        connection.exec_driver_sql(
++            "SELECT COUNT(*) FROM resume_versions WHERE candidate_id=900002"
++        ).scalar_one()
++        == 0
++    )
++
++
++def test_09_concurrent_current_document_inserts_have_one_winner(upgraded):
++    barrier = Barrier(2)
++
++    def insert():
++        with upgraded["engine"].connect() as connection:
++            barrier.wait(timeout=10)
++            try:
++                connection.exec_driver_sql(
++                    "INSERT INTO resume_versions (candidate_id,target_profile_id,is_current) VALUES (900002,900002,1)"
++                )
++                connection.commit()
++                return "created"
++            except IntegrityError:
++                connection.rollback()
++                return "duplicate"
++
++    try:
++        with ThreadPoolExecutor(max_workers=2) as pool:
++            results = list(pool.map(lambda _: insert(), range(2)))
++        assert sorted(results) == ["created", "duplicate"]
++    finally:
++        with upgraded["engine"].begin() as connection:
++            connection.exec_driver_sql("DELETE FROM resume_versions WHERE candidate_id=900002")
++
++
++def test_10_optimistic_revision_update_has_one_winner(upgraded):
++    barrier = Barrier(2)
++
++    def update():
++        with upgraded["engine"].begin() as connection:
++            barrier.wait(timeout=10)
++            return connection.exec_driver_sql(
++                "UPDATE resume_profiles SET revision=revision+1 WHERE candidate_id=900002 AND revision=1"
++            ).rowcount
++
++    try:
++        with ThreadPoolExecutor(max_workers=2) as pool:
++            results = list(pool.map(lambda _: update(), range(2)))
++        assert sorted(results) == [0, 1]
++    finally:
++        with upgraded["engine"].begin() as connection:
++            connection.exec_driver_sql(
++                "UPDATE resume_profiles SET revision=1 WHERE candidate_id=900002"
++            )
++
++
++def test_11_downgrade_restores_baseline_and_upgrade_repeats(upgraded):
++    result = alembic(upgraded["url"], "downgrade", "0039")
++    (upgraded["evidence"] / "downgrade.log").write_text(result.stdout)
++    with upgraded["engine"].connect() as connection:
++        assert (
++            connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one()
++            == "0039"
++        )
++        assert snapshot(connection) == upgraded["baseline"]
++    alembic(upgraded["url"], "upgrade", "0040")
++    with upgraded["engine"].connect() as connection:
++        assert snapshot(connection) == upgraded["upgraded_schema"]
++    evidence = {
++        "mysql": upgraded["version"],
++        "image": upgraded["image"],
++        "migration_sha256": hashlib.sha256(MIGRATION.read_bytes()).hexdigest(),
++        "baseline": "0039",
++        "final_revision": "0040",
++    }
++    (upgraded["evidence"] / "result.json").write_text(json.dumps(evidence, indent=2))
++    print(f"\nEvidence: {upgraded['evidence']}\n{json.dumps(evidence)}")
+diff --git a/tests/test_auth_http_security.py b/tests/test_auth_http_security.py
+new file mode 100644
+index 0000000..5563a50
+--- /dev/null
++++ b/tests/test_auth_http_security.py
+@@ -0,0 +1,73 @@
++import pytest
++from fastapi import Depends, FastAPI
++from httpx import ASGITransport, AsyncClient
++from scaffold.auth import TokenService, verify_candidate_access, verify_jwt, verify_jwt_or_service
++from scaffold.cache import CacheClient, InMemoryCache
++
++
++@pytest.mark.asyncio
++async def test_all_shared_guards_reject_revoked_refresh_and_cross_candidate_tokens(monkeypatch):
++    secret = "test-secret-that-is-at-least-32-bytes"
++    monkeypatch.setenv("JWT_SECRET", secret)
++    monkeypatch.setenv("SERVICE_API_KEY", "private-service-key")
++    app = FastAPI()
++    cache = CacheClient(InMemoryCache())
++    app.state.cache = cache
++    service = TokenService(secret)
++
++    @app.get("/user")
++    def user(auth=Depends(verify_jwt)):
++        return {"candidate_id": auth.candidate_id}
++
++    @app.get("/mixed")
++    def mixed(auth=Depends(verify_jwt_or_service)):
++        return {"candidate_id": auth.candidate_id}
++
++    @app.get("/candidates/{candidate_id}")
++    def candidate(candidate_id: int, auth=Depends(verify_candidate_access)):
++        return {"candidate_id": auth.candidate_id}
++
++    access, jti, ttl = service.create_access_token(42)
++    refresh, _, _ = service.create_refresh_token(42)
++    async with AsyncClient(transport=ASGITransport(app), base_url="http://test") as client:
++        for path in ["/user", "/mixed", "/candidates/42"]:
++            assert (
++                await client.get(path, headers={"Authorization": f"Bearer {access}"})
++            ).status_code == 200
++            assert (
++                await client.get(path, headers={"Authorization": f"Bearer {refresh}"})
++            ).status_code == 401
++        assert (
++            await client.get("/candidates/43", headers={"Authorization": f"Bearer {access}"})
++        ).status_code == 403
++        await service.blacklist_token(cache, jti, ttl)
++        for path in ["/user", "/mixed", "/candidates/42"]:
++            assert (
++                await client.get(path, headers={"Authorization": f"Bearer {access}"})
++            ).status_code == 401
++        assert (
++            await client.get("/candidates/43", headers={"X-Service-Key": "private-service-key"})
++        ).status_code == 200
++        assert (
++            await client.get("/user", headers={"X-Service-Key": "private-service-key"})
++        ).status_code == 401
++
++
++@pytest.mark.asyncio
++async def test_cache_outage_fails_closed(monkeypatch):
++    from unittest.mock import AsyncMock
++
++    monkeypatch.setenv("JWT_SECRET", "test-secret-that-is-at-least-32-bytes")
++    app = FastAPI()
++    app.state.cache = AsyncMock()
++    app.state.cache.exists.side_effect = ConnectionError("unavailable")
++
++    @app.get("/user")
++    def user(auth=Depends(verify_jwt)):
++        return {}
++
++    access, _, _ = TokenService("test-secret-that-is-at-least-32-bytes").create_access_token(42)
++    async with AsyncClient(transport=ASGITransport(app), base_url="http://test") as client:
++        assert (
++            await client.get("/user", headers={"Authorization": f"Bearer {access}"})
++        ).status_code == 503

@@ -24,6 +24,12 @@ class InMemoryCache:
         value, _expires_at = record
         return value
 
+    async def getdel(self, key: str) -> str | None:
+        # No await between expiry check and removal: atomic in the event loop.
+        record = self._get_record(key)
+        self._values.pop(key, None)
+        return record[0] if record is not None else None
+
     async def set(self, key: str, value: str, *, ttl_s: int | None = None) -> None:
         self._values[key] = (value, self._expires_at(ttl_s))
 
