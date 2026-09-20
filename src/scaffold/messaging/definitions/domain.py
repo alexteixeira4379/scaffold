@@ -9,7 +9,7 @@ from scaffold.messaging.topology import (
 
 DOMAIN_EXCHANGE = "jobito.domain"
 SUBSCRIPTIONS = {
-    "candidate.lifecycle": ("subscription.#",),
+    "candidate.lifecycle": ("subscription.#", "auth.contact.verified"),
     "resume.lifecycle": (
         "billing.access.reconciled",
         "payment.confirmed",
@@ -19,6 +19,8 @@ SUBSCRIPTIONS = {
     "billing.workflow": ("payment.confirmed",),
     "conversation.lifecycle": ("payment.confirmed",),
     "matching.lifecycle": (
+        "candidate.search.changed",
+        "subscription.#",
         "resume.available",
         "linkedin.session.available",
         "linkedin.session.invalidated",
@@ -31,6 +33,7 @@ SUBSCRIPTIONS = {
     "tracking.ga4": ("subscription.activated",),
     "tracking.tiktok": ("subscription.activated",),
     "notification.lifecycle": (
+        "opportunity.available",
         "subscription.activated",
         "subscription.suspended",
         "subscription.cancelled",

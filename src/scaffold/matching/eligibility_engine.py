@@ -6,7 +6,10 @@ Implements the CLOSED policy for evaluating candidate target profiles against a 
 from __future__ import annotations
 
 import logging
+import unicodedata
 from dataclasses import dataclass, field
+
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from scaffold.constants.schema_enums import EmploymentType, ExperienceLevel, RemoteType
 from scaffold.models import (
@@ -20,9 +23,28 @@ from scaffold.repositories import (
     job_professional_entity_repository,
     professional_entity_hierarchy_relation_repository,
 )
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
+
+
+def normalize_keyword(value: str) -> str:
+    return " ".join(unicodedata.normalize("NFKC", value).casefold().split())
+
+
+def normalize_policy(value: str) -> str:
+    aliases = {
+        "include": "include",
+        "desirable": "include",
+        "preferred": "include",
+        "desired": "include",
+        "required": "required",
+        "exclude": "exclude",
+        "forbidden": "exclude",
+    }
+    try:
+        return aliases[value.strip().lower()]
+    except (KeyError, AttributeError) as exc:
+        raise ValueError("Unknown keyword policy") from exc
 
 
 @dataclass(frozen=True)
@@ -222,26 +244,33 @@ async def evaluate_profile(
     entity_result = await evaluate_entity_overlap(session, job.id, profile.id, entity_context)
 
     # --- Keyword scoring ---
-    job_keyword_set = {kw.keyword.lower() for kw in job_keywords}
+    job_keyword_set = {normalize_keyword(kw.keyword) for kw in job_keywords}
 
     include_keywords: list[str] = []
     exclude_keywords: list[str] = []
+    required_keywords: list[str] = []
 
     for pk in profile_keywords:
         if not pk.active:
             continue
-        policy = pk.match_policy.lower() if pk.match_policy else ""
+        try:
+            policy = normalize_policy(pk.match_policy)
+        except ValueError:
+            filters["keyword_policy"] = "invalid"
+            return _rejected(filters)
+        keyword = normalize_keyword(pk.keyword)
         if policy == "include":
-            include_keywords.append(pk.keyword.lower())
+            include_keywords.append(keyword)
         elif policy == "exclude":
-            exclude_keywords.append(pk.keyword.lower())
+            exclude_keywords.append(keyword)
         else:
-            logger.warning(
-                "unknown match_policy=%r for keyword=%r profile_id=%s; ignoring",
-                pk.match_policy,
-                pk.keyword,
-                profile.id,
-            )
+            required_keywords.append(keyword)
+
+    # Mandatory terms constrain both entity and keyword approval.
+    if any(keyword not in job_keyword_set for keyword in required_keywords):
+        filters["required_keywords"] = "rejected"
+        return _rejected(filters)
+    filters["required_keywords"] = "pass"
 
     # Check for exclude keyword matches → immediate rejection (even with entity match)
     matched_exclude = [kw for kw in exclude_keywords if kw in job_keyword_set]

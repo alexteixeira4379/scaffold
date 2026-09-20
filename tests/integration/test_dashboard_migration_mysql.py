@@ -478,3 +478,116 @@ def test_11_downgrade_restores_baseline_and_upgrade_repeats(upgraded):
     }
     (upgraded["evidence"] / "result.json").write_text(json.dumps(evidence, indent=2))
     print(f"\nEvidence: {upgraded['evidence']}\n{json.dumps(evidence)}")
+
+
+def test_12_orm_metadata_matches_applied_0040(upgraded):
+    """Compare the runtime ORM with the approved migration actually applied above."""
+    from scaffold.base import CoreBase
+    from scaffold.models import AuthVerifiedIdentity, ResumePersona, ResumeProfile
+    from sqlalchemy.orm import Session
+
+    new_tables = (
+        "auth_verified_identities",
+        "candidate_notification_preferences",
+        "job_candidate_preferences",
+        "resume_personas",
+    )
+    with upgraded["engine"].connect() as connection:
+        inspector = sa.inspect(connection)
+        for name in new_tables:
+            model = CoreBase.metadata.tables[name]
+            actual = {column["name"]: column for column in inspector.get_columns(name)}
+            assert set(actual) == set(model.columns.keys())
+            for column in model.columns:
+                reflected = actual[column.name]
+                assert reflected["nullable"] == column.nullable
+                expected = column.type.dialect_impl(connection.dialect)
+                for attr in ("unsigned", "fsp", "enums", "length", "collation"):
+                    if getattr(expected, attr, None) is not None:
+                        assert getattr(reflected["type"], attr, None) == getattr(expected, attr), (
+                            name,
+                            column.name,
+                            attr,
+                        )
+            actual_fk = {fk["name"] for fk in inspector.get_foreign_keys(name)}
+            assert {fk.name for fk in model.foreign_key_constraints} == actual_fk
+            actual_unique = {
+                tuple(index["column_names"])
+                for index in inspector.get_indexes(name)
+                if index["unique"]
+            }
+            expected_unique = {
+                tuple(column.name for column in constraint.columns)
+                for constraint in model.constraints
+                if isinstance(constraint, sa.UniqueConstraint)
+            }
+            assert expected_unique == actual_unique
+        for table, names in {
+            "resume_personas": {"ck_persona_revision", "ck_persona_content_object"},
+            "resume_profiles": {"ck_resume_revision", "ck_resume_reviewed_array"},
+        }.items():
+            actual_checks = {check["name"] for check in inspector.get_check_constraints(table)}
+            expected_checks = {
+                str(constraint.name)
+                for constraint in CoreBase.metadata.tables[table].constraints
+                if isinstance(constraint, sa.CheckConstraint)
+            }
+            assert names <= actual_checks and names <= expected_checks
+        for table, column in [
+            ("candidate_preferences", "reviewed_at"),
+            ("candidate_target_profiles", "archived_at"),
+            ("resume_versions", "archived_at"),
+        ]:
+            reflected = next(
+                item for item in inspector.get_columns(table) if item["name"] == column
+            )
+            expected = (
+                CoreBase.metadata.tables[table].c[column].type.dialect_impl(connection.dialect)
+            )
+            assert reflected["type"].fsp == expected.fsp == 6
+        for table in ("resume_profiles", "resume_personas"):
+            reflected = next(
+                item for item in inspector.get_columns(table) if item["name"] == "revision"
+            )
+            assert reflected["type"].unsigned
+            assert (
+                CoreBase.metadata.tables[table]
+                .c.revision.type.dialect_impl(connection.dialect)
+                .unsigned
+            )
+    # Real ORM persistence, including nullable JSON semantics and microseconds.
+    with Session(upgraded["engine"]) as session:
+        profile = session.scalar(
+            sa.select(ResumeProfile).where(ResumeProfile.candidate_id == 900002)
+        )
+        profile.reviewed_sections = None
+        session.add(
+            AuthVerifiedIdentity(
+                candidate_id=900002,
+                channel="email",
+                normalized_value="orm-proof@example.test",
+                verified_at=__import__("datetime").datetime(2026, 9, 19, 10, 11, 12, 123456),
+            )
+        )
+        session.add(
+            ResumePersona(
+                candidate_id=900002,
+                target_profile_id=900002,
+                enabled=True,
+                content={"summary": "Independent", "experiences": []},
+                revision=1,
+            )
+        )
+        session.flush()
+        session.expire_all()
+        identity = session.scalar(
+            sa.select(AuthVerifiedIdentity).where(AuthVerifiedIdentity.candidate_id == 900002)
+        )
+        assert identity.verified_at.microsecond == 123456
+        assert (
+            session.scalar(
+                sa.select(ResumeProfile).where(ResumeProfile.candidate_id == 900002)
+            ).reviewed_sections
+            is None
+        )
+        session.rollback()

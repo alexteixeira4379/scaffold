@@ -92,7 +92,18 @@ async def test_resume_requires_both_events_in_either_order_and_deduplicates(
     paid, complete = event("payment.confirmed"), event("resume.builder.completed", 2)
 
     async def finish_builder():
+        from scaffold.models import ResumeProfile
+
         async with db() as session, session.begin():
+            session.add(
+                ResumeProfile(
+                    candidate_id=1,
+                    summary="Verified builder facts",
+                    source="workflow",
+                    revision=1,
+                    reviewed_sections=[],
+                )
+            )
             session.add(
                 ResumeBuildSession(
                     id=5,
@@ -119,6 +130,11 @@ async def test_resume_requires_both_events_in_either_order_and_deduplicates(
         requests = (await session.scalars(select(DomainOutbox))).all()
         assert len(requests) == 1
         assert requests[0].destination == "resume.generate"
+        generation = await session.get(ResumeBuildSession, requests[0].payload["session_id"])
+        assert (
+            generation.session_metadata["profile_snapshot"]["summary"] == "Verified builder facts"
+        )
+        assert generation.session_metadata["profile_revision"] == 1
 
 
 async def test_payment_persists_events_and_duplicate_or_old_webhook_cannot_reactivate(

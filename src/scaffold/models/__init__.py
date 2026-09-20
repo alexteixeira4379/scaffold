@@ -83,6 +83,7 @@ from scaffold.models.tracking.tracking_sessions import TrackingSession
 from scaffold.models.tracking.tracking_visits import TrackingVisit
 
 __all__ = [
+    "AuthVerifiedIdentity", "CandidateNotificationPreference", "JobCandidatePreference", "ResumePersona",
     "ResumeProfile",
     "ResumeProfileExperience",
     "ResumeProfileEducation",
@@ -174,3 +175,5 @@ from scaffold.models.domain_delivery import (
     ApplicationAuthorization,
     CollectionCoverage,
 )  # noqa: F401
+
+from scaffold.models.dashboard import AuthVerifiedIdentity, CandidateNotificationPreference, JobCandidatePreference, ResumePersona
