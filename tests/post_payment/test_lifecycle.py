@@ -40,7 +40,9 @@ async def test_activation_cancellation_and_stale_activation(db, load_service):
     async with db() as session:
         profile = await session.get(CandidateTargetProfile, 1)
         assert profile.active is False and profile.automation_authorized is False
-        assert len((await session.scalars(select(DomainOutbox))).all()) == 2
+        rows = (await session.scalars(select(DomainOutbox))).all()
+        assert sum(row.destination == "candidate.search.changed" for row in rows) == 2
+        assert sum(row.destination == "candidate.search.activated" for row in rows) == 1
 
 
 async def test_search_goal_created_after_payment_inherits_access(db, load_service):
@@ -182,3 +184,33 @@ async def test_payment_persists_events_and_duplicate_or_old_webhook_cannot_react
         events = (await session.scalars(select(DomainOutbox))).all()
         assert sum(e.destination == "subscription.activated" for e in events) == 1
         assert sum(e.destination == "subscription.cancelled" for e in events) == 1
+
+
+async def test_catalog_activation_created_after_access_and_dashboard_resume(db, load_service):
+    lifecycle = load_service("candidate-api", "src.services.lifecycle_service")
+    await seed_candidate(db)
+    async with db() as session, session.begin():
+        await lifecycle.handle_subscription(
+            session, event("subscription.activated", 1, access_active=True)
+        )
+        await lifecycle.handle_subscription(
+            session, event("subscription.activated", 2, access_active=True)
+        )
+        # A second goal created after payment must trigger its own catalog replay.
+        profile = CandidateTargetProfile(id=2, candidate_id=1, name="Python", active=False)
+        session.add(profile)
+        await lifecycle.sync_profile(session, profile)
+    routes = load_service("candidate-api", "src.routes.target_profiles")
+    for enabled in (True, False, True, True):
+        async with db() as session, session.begin():
+            await routes.set_search(
+                1, 1, routes.SearchState(active=enabled), session=session, _=None
+            )
+    async with db() as session:
+        rows = (
+            await session.scalars(
+                select(DomainOutbox).where(DomainOutbox.destination == "candidate.search.activated")
+            )
+        ).all()
+        assert len(rows) == 3  # payment, new goal, resume; never renewal or repeated enable
+        assert all(row.payload["candidate_id"] == 1 for row in rows)

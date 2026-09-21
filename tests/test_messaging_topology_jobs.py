@@ -89,3 +89,14 @@ def test_jobs_topology_has_exactly_ten_main_queues() -> None:
         queue.name for queue in jobs_topology.queues if not queue.name.endswith(".dlq")
     ]
     assert len(main_queues) == 10
+
+
+def test_catalog_replay_has_independent_activation_subscription():
+    topology = get_full_topology()
+    queues = {queue.name: queue for queue in topology.queues}
+    bindings = {(b.destination, b.routing_key) for b in topology.bindings}
+    assert ("catalog-replay.lifecycle", "candidate.search.activated") in bindings
+    assert ("catalog-replay.lifecycle", "candidate.catalog.replay.page") in bindings
+    assert not any(destination == "eligibility.lifecycle" for destination, _ in bindings)
+    assert queues["catalog-replay.lifecycle.retry"].arguments["x-dead-letter-routing-key"] == "catalog-replay.lifecycle"
+    assert "catalog-replay.lifecycle.dlq" in queues

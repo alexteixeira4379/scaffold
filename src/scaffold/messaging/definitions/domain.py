@@ -25,7 +25,7 @@ SUBSCRIPTIONS = {
         "linkedin.session.available",
         "linkedin.session.invalidated",
     ),
-    "eligibility.lifecycle": ("candidate.search.changed", "candidate.catalog.page"),
+    "catalog-replay.lifecycle": ("candidate.search.activated", "candidate.catalog.replay.page"),
     "linkedin-application.lifecycle": ("linkedin.session.available",),
     "collection.lifecycle": ("candidate.search.changed",),
     "tracking.lifecycle": ("subscription.activated",),
