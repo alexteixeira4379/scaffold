@@ -57,6 +57,7 @@ class EligibilityScore:
     matched_exclude_keywords: list[str]
     filters: dict[str, str]
     score_components: dict[str, float]
+    needs_professional_evaluation: bool = False
 
 
 @dataclass(frozen=True)
@@ -182,6 +183,7 @@ async def evaluate_profile(
     profile_with_keywords: ProfileWithKeywords,
     *,
     entity_context: dict | None = None,
+    allow_professional_evaluation: bool = False,
 ) -> EligibilityScore:
     """Evaluate a single candidate target profile against a job.
 
@@ -367,7 +369,11 @@ async def evaluate_profile(
             score_components=score_components,
         )
     else:
-        # Nem entity nem keyword aprovaram
+        # Missing classification is uncertainty, not professional incompatibility.
+        needs_evaluation = allow_professional_evaluation and (
+            entity_result.total_job_entities == 0 or entity_result.total_candidate_entities == 0
+        )
+        filters["professional"] = "needs_evaluation" if needs_evaluation else "rejected"
         return EligibilityScore(
             approved=False,
             routing_score=max(entity_result.entity_score, keyword_score),
@@ -375,4 +381,5 @@ async def evaluate_profile(
             matched_exclude_keywords=matched_exclude,
             filters=filters,
             score_components=score_components,
+            needs_professional_evaluation=needs_evaluation,
         )
