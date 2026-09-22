@@ -16,6 +16,34 @@ class AIClient:
     def from_settings(cls, settings: Settings) -> AIClient:
         return cls(create_llm_backend(settings))
 
+    def agent_profile(self, *, model=None, tool_transport=None, reasoning_effort=None, tool_choice="auto"):
+        """Resolve the actual agent configuration without changing the shared client."""
+        profile = getattr(self._backend, "agent_profile", None)
+        if profile is None:
+            return {"provider": type(self._backend).__name__, "model": model,
+                    "tool_transport": tool_transport, "reasoning_effort": reasoning_effort}
+        return profile(model=model, tool_transport=tool_transport,
+                       reasoning_effort=reasoning_effort, tool_choice=tool_choice)
+
+    async def agent(self, messages, tools, *, max_tokens=6000, temperature=0.1, tool_choice="auto",
+                    model=None, tool_transport=None, reasoning_effort=None):
+        """Only the post-activation agent opts into native tools."""
+        from scaffold.ai.contracts import AIProviderError
+
+        complete = getattr(self._backend, "complete_agent", None)
+        if complete is None:
+            raise AIProviderError("native tools are not supported by the configured backend")
+        return await complete(
+            InferenceTier.COMPLEX,
+            messages,
+            tools,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            tool_choice=tool_choice,
+            **{key: value for key, value in {"model": model, "tool_transport": tool_transport,
+                                            "reasoning_effort": reasoning_effort}.items() if value is not None},
+        )
+
     async def basic(
         self,
         prompt: str,
