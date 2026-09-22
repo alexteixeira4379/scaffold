@@ -12,6 +12,7 @@ from scaffold.ai.contracts import (
     CompletionResult,
     InferenceTier,
     ResponseMode,
+    StructuredResult,
 )
 from scaffold.ai.formatters import parse_json_content, prepare_messages
 
@@ -44,6 +45,15 @@ def strict_forced_schema(schema):
         return convert(schema)
     except ValueError:
         return None
+
+
+def reported_reasoning_tokens(usage):
+    """Provider-reported reasoning tokens, or None when the provider omits them."""
+    details = usage.get("completion_tokens_details") or usage.get("output_tokens_details") or {}
+    value = details.get("reasoning_tokens") if isinstance(details, dict) else None
+    if value is None:
+        value = usage.get("reasoning_tokens")
+    return int(value) if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
 
 
 class GroqLLM:
@@ -246,6 +256,24 @@ class GroqLLM:
             raise AIProviderError(f"groq http {response.status_code}{suffix}")
         try:
             payload = response.json()
+        except ValueError as exc:
+            raise AIProviderError("invalid agent response from provider") from exc
+
+        usage = payload.get("usage") or {}
+
+        def usage_snapshot():
+            # Never assume zero: this is what the provider reported before the
+            # response failed to parse, not the call's actual cost.
+            choices = payload.get("choices") or []
+            return {
+                "model": payload.get("model") or model,
+                "finish_reason": (choices[0].get("finish_reason") if choices else None),
+                "input_tokens": usage.get("prompt_tokens") or 0,
+                "output_tokens": usage.get("completion_tokens") or 0,
+                "reasoning_tokens": reported_reasoning_tokens(usage),
+            }
+
+        try:
             choice = payload["choices"][0]
             raw = choice["message"]
             if structured:
@@ -281,7 +309,7 @@ class GroqLLM:
                         for c in calls
                     ],
                 }
-            usage = payload.get("usage") or {}
+            reasoning = choice["message"].get("reasoning")
             return AgentResult(
                 message=AgentMessage(
                     role="assistant",
@@ -292,9 +320,13 @@ class GroqLLM:
                 finish_reason=choice.get("finish_reason") or "unknown",
                 input_tokens=usage.get("prompt_tokens") or 0,
                 output_tokens=usage.get("completion_tokens") or 0,
+                reasoning_tokens=reported_reasoning_tokens(usage),
+                reasoning_chars=len(reasoning) if isinstance(reasoning, str) else None,
             )
         except (ValueError, KeyError, IndexError, TypeError, ValidationError) as exc:
-            raise AIProviderError("invalid agent response from provider") from exc
+            # The provider was reached and billed this call; preserve what it
+            # reported so a parse failure never disappears from usage totals.
+            raise AIProviderError("invalid agent response from provider", usage=usage_snapshot()) from exc
 
     async def complete(
         self,
@@ -342,3 +374,73 @@ class GroqLLM:
         except (json.JSONDecodeError, ValueError) as e:
             raise AIProviderError(f"invalid json from model: {content[:500]}") from e
         return CompletionResult(output=output, text=content.strip(), data=data)
+
+    async def complete_structured(
+        self,
+        *,
+        model: str,
+        messages: Sequence[ChatMessage],
+        schema: Mapping[str, Any],
+        max_tokens: int,
+        temperature: float = 0.1,
+        reasoning_effort: str | None = None,
+        schema_transport: str = "json_schema",
+        schema_name: str = "output",
+    ) -> StructuredResult:
+        """One closed-schema completion. No tools, no loop, no parsing.
+
+        The caller receives the raw body, the finish reason and the usage the
+        provider reported, so a truncated or invalid body is still accounted for.
+        """
+        if schema_transport not in {"json_schema", "json_object"}:
+            raise AIProviderError("unsupported schema transport")
+        body: dict[str, Any] = {
+            "model": model,
+            "messages": [{"role": m.role, "content": m.content} for m in messages],
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        if reasoning_effort is not None:
+            body["reasoning_effort"] = reasoning_effort
+        if schema_transport == "json_schema":
+            body["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {"name": schema_name, "schema": dict(schema)},
+            }
+        else:
+            body["response_format"] = {"type": "json_object"}
+        headers = {"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"}
+        async with httpx.AsyncClient(timeout=self._timeout_s) as client:
+            response = await client.post(
+                f"{self._base_url}/chat/completions", headers=headers, json=body
+            )
+        if response.status_code >= 400:
+            raise AIProviderError(f"groq http {response.status_code}: {response.text[:500]}")
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise AIProviderError("invalid structured response from provider") from exc
+        usage = payload.get("usage") or {}
+        try:
+            choice = payload["choices"][0]
+            content = choice["message"].get("content")
+            if not isinstance(content, str):
+                raise TypeError("content is not a string")
+            return StructuredResult(
+                text=content,
+                model=payload.get("model") or model,
+                finish_reason=choice.get("finish_reason") or "unknown",
+                input_tokens=usage.get("prompt_tokens") or 0,
+                output_tokens=usage.get("completion_tokens") or 0,
+                reasoning_tokens=reported_reasoning_tokens(usage),
+            )
+        except (KeyError, IndexError, TypeError) as exc:
+            raise AIProviderError(
+                "invalid structured response from provider",
+                usage={
+                    "model": payload.get("model") or model,
+                    "input_tokens": usage.get("prompt_tokens") or 0,
+                    "output_tokens": usage.get("completion_tokens") or 0,
+                    "reasoning_tokens": reported_reasoning_tokens(usage),
+                },
+            ) from exc

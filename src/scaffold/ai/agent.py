@@ -69,3 +69,9 @@ class AgentResult(BaseModel):
     finish_reason: str
     input_tokens: int = Field(default=0, ge=0)
     output_tokens: int = Field(default=0, ge=0)
+    # Reasoning accounting only when the provider reports it: None is "not reported",
+    # never zero. Raw reasoning text is never retained, only its length.
+    reasoning_tokens: int | None = Field(default=None, ge=0)
+    reasoning_chars: int | None = Field(default=None, ge=0)
+    # Set by callers that replay a stored result instead of calling the provider.
+    cached: bool = False

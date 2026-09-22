@@ -44,4 +44,25 @@ class CompletionResult(BaseModel):
 
 
 class AIProviderError(RuntimeError):
-    pass
+    def __init__(self, message, *, usage=None):
+        # Usage the provider reported before generation failed to parse. Optional:
+        # a transport-level failure (HTTP error, no response body) has none.
+        super().__init__(message)
+        self.usage = usage
+
+
+class StructuredResult(BaseModel):
+    """Raw structured completion with the provider's own accounting.
+
+    Parsing and schema validation belong to the caller: it must distinguish a
+    truncated body from invalid JSON before deciding whether a result is usable.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    text: str
+    model: str
+    finish_reason: str
+    input_tokens: int = 0
+    output_tokens: int = 0
+    reasoning_tokens: int | None = None

@@ -44,6 +44,15 @@ class AIClient:
                                             "reasoning_effort": reasoning_effort}.items() if value is not None},
         )
 
+    async def structured(self, **kwargs):
+        """Closed-schema completion for callers that orchestrate in code."""
+        from scaffold.ai.contracts import AIProviderError
+
+        complete = getattr(self._backend, "complete_structured", None)
+        if complete is None:
+            raise AIProviderError("structured completions are not supported by the configured backend")
+        return await complete(**kwargs)
+
     async def basic(
         self,
         prompt: str,

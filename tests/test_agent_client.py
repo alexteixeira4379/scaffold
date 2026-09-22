@@ -260,3 +260,142 @@ async def test_strict_forced_transport_is_opt_in_and_preserves_tool_result(monke
     assert "tools" not in body
     assert output.message.tool_calls[0].function.name == "review_result"
     assert json.loads(output.message.tool_calls[0].function.arguments) == {"issues": []}
+
+
+async def test_reasoning_usage_is_reported_only_when_provider_provides_it():
+    from scaffold.ai.groq import reported_reasoning_tokens
+
+    assert reported_reasoning_tokens({"prompt_tokens": 1, "completion_tokens": 2}) is None
+    assert reported_reasoning_tokens(
+        {"completion_tokens": 20, "completion_tokens_details": {"reasoning_tokens": 12}}
+    ) == 12
+    assert reported_reasoning_tokens({"reasoning_tokens": 3}) == 3
+    backend = GroqLLM(
+        api_key="test",
+        base_url="https://provider.invalid",
+        models={InferenceTier.COMPLEX: "qwen/qwen3.8-27b"},
+    )
+    request = httpx.Request("POST", "https://provider.invalid/chat/completions")
+    response = httpx.Response(
+        200,
+        request=request,
+        json={
+            "model": "qwen/qwen3.8-27b",
+            "usage": {"prompt_tokens": 100, "completion_tokens": 20},
+            "choices": [
+                {
+                    "finish_reason": "length",
+                    "message": {
+                        "role": "assistant",
+                        "reasoning": "private chain of thought",
+                        "content": json.dumps({"ok": True}),
+                    },
+                }
+            ],
+        },
+    )
+    with patch("httpx.AsyncClient.post", new=AsyncMock(return_value=response)):
+        result = await AIClient(backend).agent(
+            [AgentMessage(role="user", content="test")],
+            [ToolDefinition(name="review", description="Review", parameters={"type": "object"})],
+            tool_choice={"type": "function", "function": {"name": "review"}},
+            tool_transport="json",
+        )
+    assert result.finish_reason == "length"
+    assert result.reasoning_tokens is None
+    assert result.reasoning_chars == len("private chain of thought")
+    assert result.cached is False
+    assert "private chain of thought" not in result.model_dump_json()
+
+
+async def test_invalid_agent_response_preserves_reported_usage():
+    backend = GroqLLM(
+        api_key="test",
+        base_url="https://provider.invalid",
+        models={InferenceTier.COMPLEX: "openai/gpt-oss-120b"},
+    )
+    request = httpx.Request("POST", "https://provider.invalid/chat/completions")
+    response = httpx.Response(
+        200,
+        request=request,
+        json={
+            "model": "openai/gpt-oss-120b",
+            "usage": {"prompt_tokens": 5855, "completion_tokens": 6000},
+            "choices": [
+                {
+                    "finish_reason": "length",
+                    # Cut mid-content: not valid JSON for the structured call.
+                    "message": {"role": "assistant", "content": '{"factual_checks": ['},
+                }
+            ],
+        },
+    )
+    with patch("httpx.AsyncClient.post", new=AsyncMock(return_value=response)):
+        with pytest.raises(AIProviderError) as excinfo:
+            await AIClient(backend).agent(
+                [AgentMessage(role="user", content="test")],
+                [ToolDefinition(name="review_result", description="Review", parameters={"type": "object"})],
+                tool_choice={"type": "function", "function": {"name": "review_result"}},
+                tool_transport="json",
+            )
+    usage = excinfo.value.usage
+    assert usage == {
+        "model": "openai/gpt-oss-120b",
+        "finish_reason": "length",
+        "input_tokens": 5855,
+        "output_tokens": 6000,
+        "reasoning_tokens": None,
+    }
+
+
+async def test_non_json_provider_body_has_no_usage_to_report():
+    backend = GroqLLM(
+        api_key="test",
+        base_url="https://provider.invalid",
+        models={InferenceTier.COMPLEX: "openai/gpt-oss-120b"},
+    )
+    request = httpx.Request("POST", "https://provider.invalid/chat/completions")
+    response = httpx.Response(200, request=request, content=b"not json")
+    with patch("httpx.AsyncClient.post", new=AsyncMock(return_value=response)):
+        with pytest.raises(AIProviderError) as excinfo:
+            await AIClient(backend).agent(
+                [AgentMessage(role="user", content="test")],
+                [ToolDefinition(name="review_result", description="Review", parameters={"type": "object"})],
+            )
+    assert excinfo.value.usage is None
+
+
+async def test_structured_completion_returns_raw_body_with_accounting(monkeypatch):
+    backend = GroqLLM(
+        api_key="test", base_url="https://provider.invalid",
+        models={InferenceTier.COMPLEX: "openai/gpt-oss-20b"},
+    )
+    captured = {}
+
+    async def fake_post(self, url, headers=None, json=None):
+        captured["body"] = json
+        request = httpx.Request("POST", url)
+        return httpx.Response(200, request=request, json={
+            "model": "openai/gpt-oss-20b",
+            "usage": {"prompt_tokens": 40, "completion_tokens": 9,
+                      "completion_tokens_details": {"reasoning_tokens": 4}},
+            "choices": [{"finish_reason": "length",
+                         "message": {"role": "assistant", "content": '{"kind": "smalltalk"'}}],
+        })
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post)
+    from scaffold.ai.contracts import ChatMessage
+
+    result = await backend.complete_structured(
+        model="openai/gpt-oss-20b",
+        messages=[ChatMessage(role="user", content="oi")],
+        schema={"type": "object", "properties": {"kind": {"type": "string"}}},
+        max_tokens=50, reasoning_effort="low", schema_name="router",
+    )
+    assert result.text == '{"kind": "smalltalk"'
+    assert result.finish_reason == "length"
+    assert (result.input_tokens, result.output_tokens, result.reasoning_tokens) == (40, 9, 4)
+    assert captured["body"]["response_format"]["type"] == "json_schema"
+    assert captured["body"]["response_format"]["json_schema"]["name"] == "router"
+    assert captured["body"]["reasoning_effort"] == "low"
+    assert "tools" not in captured["body"]
