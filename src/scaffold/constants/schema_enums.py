@@ -260,6 +260,7 @@ class ResumeSessionStatus(StrEnum):
 class ResumeProfileSource(StrEnum):
     WORKFLOW = "workflow"
     DIRECT_API = "direct_api"
+    JOB_GENERATION = "job_generation"
 
 
 class ResumeCredentialType(StrEnum):
