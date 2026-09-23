@@ -45,6 +45,7 @@ class ResumeProfile(CoreBase):
     headline: Mapped[str | None] = mapped_column(String(255), nullable=True)
     portfolio_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     reviewed_sections: Mapped[list | None] = mapped_column(JSON(none_as_null=True), nullable=True)
+    skills: Mapped[list | None] = mapped_column(JSON(none_as_null=True), nullable=True)
     revision: Mapped[int] = mapped_column(UNSIGNED_REVISION, nullable=False, server_default="1")
     schema_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
     source: Mapped[ResumeProfileSource] = mapped_column(_resume_profile_source, nullable=False)
