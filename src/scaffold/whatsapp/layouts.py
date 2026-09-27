@@ -34,6 +34,9 @@ SECTION_TITLE_MAX = 24
 LIST_BUTTON_LABEL_MAX = 20
 CTA_BUTTON_LABEL_MAX = 20
 BODY_TEXT_MAX = 1024
+# Plain text messages accept up to 4096 characters (Cloud API); 1024 is the
+# limit of interactive message bodies only.
+TEXT_BODY_MAX = 4096
 HEADER_TEXT_MAX = 60
 FOOTER_TEXT_MAX = 60
 
@@ -109,12 +112,12 @@ class Section(BaseModel):
         return self
 
 
-def _validate_body(text: str) -> str:
+def _validate_body(text: str, limit: int = BODY_TEXT_MAX) -> str:
     value = text.strip()
     if not value:
         raise LayoutError("body vazio")
-    if len(value) > BODY_TEXT_MAX:
-        raise LayoutError(f"body excede {BODY_TEXT_MAX} caracteres")
+    if len(value) > limit:
+        raise LayoutError(f"body excede {limit} caracteres")
     return value
 
 
@@ -154,7 +157,7 @@ class TextLayout(BaseModel):
     preview_url: bool = False
 
     def render(self) -> dict[str, Any]:
-        body = _validate_body(self.body)
+        body = _validate_body(self.body, TEXT_BODY_MAX)
         return {"type": "text", "text": {"body": body, "preview_url": self.preview_url}}
 
 

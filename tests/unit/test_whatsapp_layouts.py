@@ -313,8 +313,10 @@ def test_body_vazio_falha():
         render_layout(layout)
 
 
-def test_body_maior_que_1024_falha():
-    layout = TextLayout(body="X" * 1025)
+def test_body_de_texto_maior_que_4096_falha():
+    # Plain text accepts 4096 (Cloud API); interactive bodies keep 1024 (see test_text_layout_limit).
+    render_layout(TextLayout(body="X" * 1025))
+    layout = TextLayout(body="X" * 4097)
     with pytest.raises(LayoutError):
         render_layout(layout)
 
