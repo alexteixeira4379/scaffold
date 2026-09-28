@@ -85,3 +85,6 @@ class CandidateContext:
     # File paths (downloaded locally)
     resume_local_path: str | None = None
     cover_letter_local_path: str | None = None
+
+    resume_version_id: int | None = None
+    resume_content: str | None = None

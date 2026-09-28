@@ -35,7 +35,7 @@ class AIResponder:
 
     async def answer(self, question: Question, context: CandidateContext) -> Answer:
         """Answer a single question using AI."""
-        prompt = build_single_question_prompt(question, context)
+        prompt = build_single_question_prompt(question, context, strict=self._strict)
 
         result = await self._ai.basic(
             prompt,
@@ -59,7 +59,7 @@ class AIResponder:
         if len(questions) == 1:
             return [await self.answer(questions[0], context)]
 
-        prompt = build_batch_prompt(questions, context)
+        prompt = build_batch_prompt(questions, context, strict=self._strict)
 
         result = await self._ai.basic(
             prompt,
@@ -96,7 +96,7 @@ class AIResponder:
     def _post_process(self, question: Question, raw_answer: str) -> Answer:
         """Post-process AI answer: match options, extract numbers, etc."""
         if self._strict:
-            if raw_answer.strip().lower() in {"", "n/a", "unknown"}:
+            if raw_answer.strip().lower() in {"", "n/a", "unknown", '""', "null", "none", "not provided"}:
                 return self._default_answer(question)
             if question.options:
                 options = [o for o in question.options if raw_answer in {o.value, o.label}]

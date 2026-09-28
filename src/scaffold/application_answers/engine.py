@@ -63,7 +63,7 @@ class AnswerEngine:
         """Access the loaded candidate context (None if load() not called)."""
         return self._context
 
-    async def load(self, candidate_id: int) -> None:
+    async def load(self, candidate_id: int, *, resume_version_id: int | None = None) -> None:
         """Load candidate data from the database.
 
         Must be called once before answer() or answer_batch().
@@ -73,6 +73,7 @@ class AnswerEngine:
             self._session_factory,
             candidate_id,
             storage_client=self._storage_client,
+            **({"resume_version_id": resume_version_id} if resume_version_id is not None else {}),
         )
         self._matcher = CommonMatcher(self._context, strict=self._strict)
         if self._ai_client is not None:

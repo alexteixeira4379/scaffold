@@ -24,6 +24,7 @@ async def load_candidate_context(
     candidate_id: int,
     *,
     storage_client: StoragePort | None = None,
+    resume_version_id: int | None = None,
 ) -> CandidateContext:
     """Load all candidate data needed for answering application questions.
 
@@ -73,16 +74,22 @@ async def load_candidate_context(
             ctx.disability_status = app_data.disability_status
             ctx.custom_answers = app_data.custom_answers or {}
 
-        # Load resume path
-        resumes = await resume_version_repository.list_by_candidate_id(
-            session, candidate_id, limit=1
-        )
-        if resumes:
-            resume = resumes[0]
-            if resume.storage_url and storage_client is not None:
-                ctx.resume_local_path = await _download_file(
-                    storage_client, resume.storage_url, f"resume_{candidate_id}"
-                )
+        # Explicit versions must belong to the candidate; never substitute latest.
+        if resume_version_id is not None:
+            resume = await resume_version_repository.get(session, resume_version_id)
+            if resume is None or resume.candidate_id != candidate_id:
+                raise ValueError("authorized_resume_not_found")
+            ctx.resume_version_id = resume.id
+            ctx.resume_content = resume.content
+        else:
+            resumes = await resume_version_repository.list_by_candidate_id(
+                session, candidate_id, limit=1
+            )
+            resume = resumes[0] if resumes else None
+        if resume is not None and resume.storage_url and storage_client is not None:
+            ctx.resume_local_path = await _download_file(
+                storage_client, resume.storage_url, f"resume_{candidate_id}"
+            )
 
         # Load cover letter path
         cover_letters = await cover_letter_version_repository.list_by_candidate_id(
