@@ -175,7 +175,8 @@ _EXCLUDE_WORK_AUTH = ["work", "authorized", "autorizado", "permissão", "visto",
 class CommonMatcher:
     """Deterministic matcher that resolves questions from candidate data."""
 
-    def __init__(self, context: CandidateContext) -> None:
+    def __init__(self, context: CandidateContext, *, strict: bool = False) -> None:
+        self._strict = strict
         self._ctx = context
         self._dispatch_table: dict[str, object] = {
             "phone country code": self._handle_phone_country_code,
@@ -201,6 +202,26 @@ class CommonMatcher:
         }
 
     def match(self, question: Question) -> Answer | None:
+        if not self._strict:
+            return self._match(question)
+        # Resolve the underlying fact without allowing option fallback/substring matching.
+        from dataclasses import replace
+        result = self._match(replace(question, options=None))
+        if result is None or result.value.strip().lower() in {"", "n/a", "unknown"}:
+            return None
+        if question.options:
+            exact = [o for o in question.options if normalize_text(result.value) in
+                     {normalize_text(o.value), normalize_text(o.label)}]
+            option = exact[0] if len(exact) == 1 else (
+                _find_numeric_range_option(int(result.value), question.options)
+                if result.value.isdigit() else None
+            )
+            if option is None:
+                return None
+            return Answer(question.id, AnswerType.OPTION, option.value, 1.0, "database")
+        return result
+
+    def _match(self, question: Question) -> Answer | None:
         """Try to answer a question from candidate data.
 
         Returns None if no deterministic answer can be provided.
