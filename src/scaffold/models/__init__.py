@@ -177,3 +177,5 @@ from scaffold.models.domain_delivery import (
 )  # noqa: F401
 
 from scaffold.models.dashboard import AuthVerifiedIdentity, CandidateNotificationPreference, JobCandidatePreference, ResumePersona
+
+from scaffold.models.ats import discovery  # noqa: F401
