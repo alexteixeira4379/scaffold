@@ -78,3 +78,12 @@ def test_strict_residence_does_not_use_job_search_target():
     matcher = CommonMatcher(context, strict=True)
     assert matcher.match(Question("country", "Country")) is None
     assert matcher.match(Question("location", "Current location")) is None
+
+
+def test_required_markers_do_not_change_fact_identity():
+    matcher = CommonMatcher(
+        CandidateContext(1, full_name="Candidate Example", email="fixture@example.test"),
+        strict=True,
+    )
+    assert matcher.match(Question("name", "Full name ✱")).value == "Candidate Example"
+    assert matcher.match(Question("email", "Email *")).value == "fixture@example.test"
