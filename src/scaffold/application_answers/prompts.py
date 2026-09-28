@@ -125,6 +125,10 @@ def _context_to_dict(context: CandidateContext) -> dict:
         "full_name": context.full_name,
         "email": context.email,
     }
+    data["accepted_work_modes"] = context.remote_preferences
+    data["employment_preference"] = {
+        "full_time": "CLT / full_time", "contract": "PJ / contract", "unknown": "all"
+    }.get(context.employment_preference, context.employment_preference)
     if context.phone:
         data["phone"] = context.phone
     if context.country:
@@ -193,6 +197,7 @@ def _strict_prompt(questions: list[Question], context: CandidateContext, *, batc
         "Answer from supplied candidate facts and authorized resume only. "
         "You may derive experience and skills from documented work history. "
         "Never infer residence from target location, personal declarations, or consent. "
+        "Never infer CPF, race, sexual orientation, gender identity, disability, diagnosis or accessibility needs. "
         "Missing facts must produce an empty answer and evidence, even for required questions. "
         "Absence of a fact never proves a negative answer. Remote work experience requires "
         "an explicit remote-work statement, not software skills, preferences or job titles. "

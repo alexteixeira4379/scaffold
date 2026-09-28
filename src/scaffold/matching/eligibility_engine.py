@@ -5,6 +5,8 @@ Implements the CLOSED policy for evaluating candidate target profiles against a 
 
 from __future__ import annotations
 
+from scaffold.candidate_profile import WORK_MODES, effective_work_modes
+
 import logging
 import unicodedata
 from dataclasses import dataclass, field
@@ -208,11 +210,12 @@ async def evaluate_profile(
         return _rejected(filters)
     filters["country"] = "pass"
 
+    selected_modes = effective_work_modes(profile.remote_preference, getattr(profile, "remote_preferences", None))
     # Remote preference filter
     if (
-        profile.remote_preference != RemoteType.UNKNOWN
+        set(selected_modes) != set(WORK_MODES)
         and job.remote_type != RemoteType.UNKNOWN
-        and profile.remote_preference != job.remote_type
+        and job.remote_type not in selected_modes
     ):
         filters["remote"] = "rejected"
         return _rejected(filters)
@@ -305,9 +308,9 @@ async def evaluate_profile(
 
         # +10 if remote_preference matches exactly
         if (
-            profile.remote_preference != RemoteType.UNKNOWN
+            (profile.remote_preference != RemoteType.UNKNOWN or bool(getattr(profile, "remote_preferences", None)) and len(profile.remote_preferences) < 3)
             and job.remote_type != RemoteType.UNKNOWN
-            and profile.remote_preference == job.remote_type
+            and job.remote_type in effective_work_modes(profile.remote_preference, getattr(profile, "remote_preferences", None))
         ):
             keyword_score += 10.0
             score_components["remote_match"] = 10.0

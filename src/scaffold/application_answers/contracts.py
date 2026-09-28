@@ -64,6 +64,15 @@ class CandidateContext:
     location: str | None = None
     linkedin_url: str | None = None
 
+    cpf: str | None = None
+    race_color: str | None = None
+    sexual_orientation: str | None = None
+    disability_types: str | None = None
+    disability_cids: str | None = None
+    accessibility_resources: str | None = None
+    employment_preference: str = "unknown"
+    remote_preferences: list[str] = field(default_factory=lambda: ["remote", "hybrid", "onsite"])
+
     # From candidate_preferences
     target_country: str | None = None
     target_location: str | None = None

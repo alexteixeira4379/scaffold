@@ -1173,7 +1173,7 @@ wheels = [
 
 [[package]]
 name = "scaffold"
-version = "2.7.7"
+version = "2.7.8"
 source = { editable = "." }
 dependencies = [
     { name = "aio-pika" },

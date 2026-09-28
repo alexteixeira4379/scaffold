@@ -76,3 +76,24 @@ async def test_country_mismatch_is_rejected_before_fallback():
     args[1].country = "US"
     result = await evaluate_profile(*args, allow_professional_evaluation=True)
     assert not result.approved and not result.needs_professional_evaluation
+
+
+@pytest.mark.parametrize('mode,accepted', [('remote', True), ('hybrid', True), ('onsite', False)])
+async def test_multiple_work_modes_filter_membership(mode, accepted):
+    args = inputs()
+    args[1].remote_type = mode
+    args[3].profile.remote_preferences = ['remote', 'hybrid']
+    with patch('scaffold.matching.eligibility_engine.evaluate_entity_overlap', new_callable=AsyncMock) as overlap:
+        overlap.return_value = EntityMatchResult(True, 80, [1], [], 1, 1)
+        result = await evaluate_profile(*args)
+    assert result.approved == accepted
+
+
+@pytest.mark.parametrize('selection', [None, [], ['remote', 'hybrid', 'onsite']])
+async def test_all_work_modes_preserves_flexible_jobs(selection):
+    args = inputs()
+    args[1].remote_type = 'flexible'
+    args[3].profile.remote_preferences = selection
+    with patch('scaffold.matching.eligibility_engine.evaluate_entity_overlap', new_callable=AsyncMock) as overlap:
+        overlap.return_value = EntityMatchResult(True, 80, [1], [], 1, 1)
+        assert (await evaluate_profile(*args)).approved

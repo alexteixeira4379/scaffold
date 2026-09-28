@@ -13,6 +13,7 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.dialects.mysql import JSON
 
 from scaffold.base import CoreBase
 from scaffold.models.dashboard_types import DATETIME_6
@@ -39,6 +40,7 @@ class CandidatePreference(CoreBase):
         nullable=False,
         server_default=mysql_default("job_remote_type", RemoteType.UNKNOWN),
     )
+    remote_preferences: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     employment_preference: Mapped[EmploymentType] = mapped_column(
         _job_employment_type,
         nullable=False,
@@ -52,6 +54,7 @@ class CandidatePreference(CoreBase):
     min_salary: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
     currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    salary_reviewed_at: Mapped[datetime | None] = mapped_column(DATETIME_6, nullable=True)
     reviewed_at: Mapped[datetime | None] = mapped_column(DATETIME_6, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

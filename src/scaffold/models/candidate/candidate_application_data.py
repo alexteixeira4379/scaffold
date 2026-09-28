@@ -20,6 +20,13 @@ class CandidateApplicationData(CoreBase):
         BigInteger, ForeignKey("candidates.id"), nullable=False
     )
 
+    cpf: Mapped[str | None] = mapped_column(String(11), nullable=True)
+    race_color: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    sexual_orientation: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    disability_types: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    disability_cids: Mapped[str | None] = mapped_column(String(250), nullable=True)
+    accessibility_resources: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+
     # Application-specific data
     years_of_experience: Mapped[int | None] = mapped_column(Integer, nullable=True)
     work_authorization: Mapped[str | None] = mapped_column(String(100), nullable=True)

@@ -68,7 +68,8 @@ def test_strict_does_not_reuse_personal_fact_for_a_different_question():
         "Previous salary",
         "Manager email",
     ]:
-        assert matcher.match(Question("other", label)) is None
+        answer = matcher.match(Question("other", label))
+        assert answer is None or (answer.type == AnswerType.SKIP and not answer.value)
     assert matcher.match(Question("name", "Full name")).value == "Candidate Example"
     assert matcher.match(Question("other", "Full name")).value == "Candidate Example"
 

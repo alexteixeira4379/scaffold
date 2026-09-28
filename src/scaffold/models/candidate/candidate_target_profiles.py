@@ -16,6 +16,7 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.dialects.mysql import JSON
 
 from scaffold.base import CoreBase
 from scaffold.models.dashboard_types import DATETIME_6
@@ -48,6 +49,7 @@ class CandidateTargetProfile(CoreBase):
         nullable=False,
         server_default=mysql_default("job_remote_type", RemoteType.UNKNOWN),
     )
+    remote_preferences: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     employment_preference: Mapped[EmploymentType] = mapped_column(
         _job_employment_type,
         nullable=False,

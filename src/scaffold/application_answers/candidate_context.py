@@ -59,6 +59,9 @@ async def load_candidate_context(
             ctx.target_location = prefs.target_location
             ctx.min_salary = float(prefs.min_salary) if prefs.min_salary is not None else None
             ctx.currency = prefs.currency
+            from scaffold.candidate_profile import effective_work_modes
+            ctx.employment_preference = str(prefs.employment_preference)
+            ctx.remote_preferences = effective_work_modes(prefs.remote_preference, prefs.remote_preferences)
 
         # Load application data (optional table)
         app_data = await _load_application_data(session, candidate_id)
@@ -69,6 +72,12 @@ async def load_candidate_context(
             ctx.education_level = app_data.education_level
             ctx.languages = app_data.languages or []
             ctx.availability = app_data.availability
+            ctx.cpf = app_data.cpf
+            ctx.race_color = app_data.race_color
+            ctx.sexual_orientation = app_data.sexual_orientation
+            ctx.disability_types = app_data.disability_types
+            ctx.disability_cids = app_data.disability_cids
+            ctx.accessibility_resources = app_data.accessibility_resources
             ctx.gender = app_data.gender
             ctx.veteran_status = app_data.veteran_status
             ctx.disability_status = app_data.disability_status

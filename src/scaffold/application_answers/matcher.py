@@ -202,6 +202,10 @@ class CommonMatcher:
         }
 
     def match(self, question: Question) -> Answer | None:
+        from scaffold.application_answers.personal_facts import match_personal_fact
+        personal = match_personal_fact(question, self._ctx)
+        if personal is not None:
+            return personal
         if not self._strict:
             return self._match(question)
         # Resolve the underlying fact without allowing option fallback/substring matching.
@@ -486,7 +490,7 @@ class CommonMatcher:
 
     def _handle_salary(self, question: Question) -> Answer | None:
         if self._ctx.min_salary is not None:
-            return _make_answer(question, str(int(self._ctx.min_salary)))
+            return _make_answer(question, format(self._ctx.min_salary, ".2f").rstrip("0").rstrip("."))
         return None
 
     def _handle_availability(self, question: Question) -> Answer | None:
