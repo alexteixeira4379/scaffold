@@ -17,6 +17,7 @@ from scaffold.application_answers.prompts import (
     SYSTEM_PROMPT,
     build_batch_prompt,
     build_single_question_prompt,
+    strict_candidate_facts,
 )
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,8 @@ class AIResponder:
 
     async def answer(self, question: Question, context: CandidateContext) -> Answer:
         """Answer a single question using AI."""
+        if self._strict:
+            return (await self._answer_grounded([question], context))[0]
         prompt = build_single_question_prompt(question, context, strict=self._strict)
 
         result = await self._ai.basic(
@@ -54,6 +57,9 @@ class AIResponder:
         """Answer multiple questions in a single AI call."""
         if not questions:
             return []
+
+        if self._strict:
+            return await self._answer_grounded(questions, context)
 
         # For a single question, just use the single-question method
         if len(questions) == 1:
@@ -92,6 +98,52 @@ class AIResponder:
                 answers.append(self._default_answer(question))
 
         return answers
+
+    async def _answer_grounded(self, questions, context):
+        result = await self._ai.basic(
+            build_batch_prompt(questions, context, strict=True), ResponseMode.JSON,
+            system=SYSTEM_PROMPT + " Use supplied evidence only; missing facts stay unanswered.",
+            temperature=0, max_tokens=6000,
+        )
+        data = result.as_json()
+        return [self._grounded_answer(q, data.get(q.id), context) for q in questions]
+
+    def _grounded_answer(self, question, record, context):
+        import json
+        import unicodedata
+
+        def normalize(value):
+            return " ".join(unicodedata.normalize("NFKC", value).casefold().split())
+
+        if not isinstance(record, dict):
+            return self._default_answer(question)
+        answer, evidence = record.get("answer"), record.get("evidence")
+        if not isinstance(answer, str) or not isinstance(evidence, str) or not evidence.strip():
+            return self._default_answer(question)
+
+        # Decode persisted structured resume content before matching verbatim quotes.
+        def leaves(value):
+            if isinstance(value, dict):
+                return [s for v in value.values() for s in leaves(v)]
+            if isinstance(value, list):
+                return [s for v in value for s in leaves(v)]
+            if isinstance(value, str):
+                try:
+                    parsed = json.loads(value)
+                except (ValueError, TypeError):
+                    return [value]
+                return leaves(parsed) if isinstance(parsed, (dict, list)) else [value]
+            return [str(value)] if value is not None else []
+
+        quote = normalize(evidence)
+        if not any(quote in normalize(fact) for fact in leaves(strict_candidate_facts(context))):
+            return self._default_answer(question)
+        # Remote experience is a personal fact, not implied by technical skills or preferences.
+        remote_terms = ("remot", "home office", "work from home", "teletrabalh")
+        if any(term in normalize(question.question) for term in remote_terms):
+            if not any(term in quote for term in remote_terms):
+                return self._default_answer(question)
+        return self._post_process(question, answer)
 
     def _post_process(self, question: Question, raw_answer: str) -> Answer:
         """Post-process AI answer: match options, extract numbers, etc."""

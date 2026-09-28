@@ -43,5 +43,28 @@ def test_strict_prompt_contains_authorized_resume_and_all_options():
     assert 'Python since 2015' in prompt
     assert 'Band 19' in prompt
     assert 'MUST provide' not in prompt
-    assert 'empty string' in prompt
+    assert 'empty answer' in prompt
     assert 'authorized_resume' not in build_batch_prompt([q], ctx)
+
+
+def test_strict_ai_rejects_unfounded_remote_experience():
+    from scaffold.application_answers.ai_responder import AIResponder
+    from scaffold.application_answers.contracts import AnswerType
+    responder = AIResponder(AsyncMock(), strict=True)
+    ctx = CandidateContext(42, resume_version_id=55, resume_content='Senior Python developer')
+    q = Question('remote', 'Você já trabalhou em ambiente remoto?', options=[QuestionOption('Sim', 'yes')])
+    for record in [{'answer': 'yes', 'evidence': 'Worked remotely'},
+                   {'answer': 'yes', 'evidence': 'Senior Python developer'},
+                   {'answer': 'yes', 'evidence': ''}]:
+        assert responder._grounded_answer(q, record, ctx).type == AnswerType.SKIP
+    ctx.resume_content = 'Worked remotely since 2020'
+    assert responder._grounded_answer(q, {'answer': 'yes', 'evidence': ctx.resume_content}, ctx).value == 'yes'
+
+
+def test_strict_ai_uses_verbatim_structured_resume_skill():
+    from scaffold.application_answers.ai_responder import AIResponder
+    ctx = CandidateContext(42, resume_version_id=55, resume_content='{"skills": ["Python"]}')
+    answer = AIResponder(AsyncMock(), strict=True)._grounded_answer(
+        Question('tech', 'Main technology?'), {'answer': 'Python', 'evidence': 'Python'}, ctx)
+    assert answer.value == 'Python'
+    assert answer.source == 'ai'
