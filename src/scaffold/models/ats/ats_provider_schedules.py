@@ -17,7 +17,7 @@ class AtsProviderSchedule(CoreBase):
         BigInteger, ForeignKey("ats_providers.id"), nullable=False
     )
     interval_seconds: Mapped[int] = mapped_column(
-        Integer, nullable=False, server_default="3600"
+        Integer, nullable=False, server_default="345600"
     )
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
     created_at: Mapped[datetime] = mapped_column(

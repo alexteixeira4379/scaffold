@@ -5,6 +5,7 @@ from typing import Any
 
 from sqlalchemy import (
     JSON,
+    Integer,
     BigInteger,
     Boolean,
     DateTime,
@@ -28,6 +29,7 @@ class AtsDiscoverySource(CoreBase):
         UniqueConstraint("code"),
         UniqueConstraint("canonical_identity_hash"),
         Index("ix_ats_discovery_sources_ats_provider_id", "ats_provider_id"),
+        Index("ix_ats_collection_due", "active", "next_collection_at", "collection_lease_until"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -54,6 +56,14 @@ class AtsDiscoverySource(CoreBase):
     last_collected_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Collection state is independent from discovery qualification.
+    collection_state: Mapped[str] = mapped_column(String(24), nullable=False, server_default="idle")
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    next_collection_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    collection_cycle_id: Mapped[str | None] = mapped_column(String(36))
+    collection_lease_token: Mapped[str | None] = mapped_column(String(36))
+    collection_lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    collection_failures: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

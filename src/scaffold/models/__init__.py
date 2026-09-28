@@ -1,3 +1,4 @@
+from scaffold.models.ats.ats_collection_runs import AtsCollectionRun
 from scaffold.models.application.application_artifacts import ApplicationArtifact
 from scaffold.models.application.application_domain_rules import ApplicationDomainRule
 from scaffold.models.application.application_events import ApplicationEvent
