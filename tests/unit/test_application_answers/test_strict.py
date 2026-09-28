@@ -87,3 +87,10 @@ def test_required_markers_do_not_change_fact_identity():
     )
     assert matcher.match(Question("name", "Full name ✱")).value == "Candidate Example"
     assert matcher.match(Question("email", "Email *")).value == "fixture@example.test"
+
+
+def test_strict_phone_preserves_explicit_international_prefix():
+    context = CandidateContext(1, phone="+55 11 99999-9999")
+    question = Question("phone", "Phone")
+    assert CommonMatcher(context, strict=True).match(question).value == "+55 11 99999-9999"
+    assert CommonMatcher(context).match(question).value == "5511999999999"

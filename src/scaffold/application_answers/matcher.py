@@ -425,7 +425,10 @@ class CommonMatcher:
         if self._ctx.phone:
             # Strip non-digits for numeric fields
             digits = re.sub(r"\D", "", self._ctx.phone)
-            return _make_answer(question, digits if digits else self._ctx.phone)
+            return _make_answer(
+                question,
+                self._ctx.phone if self._strict else (digits if digits else self._ctx.phone),
+            )
         return None
 
     def _handle_linkedin(self, question: Question) -> Answer | None:
