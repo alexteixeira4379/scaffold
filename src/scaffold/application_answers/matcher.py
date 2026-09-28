@@ -206,20 +206,91 @@ class CommonMatcher:
             return self._match(question)
         # Resolve the underlying fact without allowing option fallback/substring matching.
         from dataclasses import replace
-        result = self._match(replace(question, options=None))
+
+        result = self._strict_fact(replace(question, options=None))
         if result is None or result.value.strip().lower() in {"", "n/a", "unknown"}:
             return None
         if question.options:
-            exact = [o for o in question.options if normalize_text(result.value) in
-                     {normalize_text(o.value), normalize_text(o.label)}]
-            option = exact[0] if len(exact) == 1 else (
-                _find_numeric_range_option(int(result.value), question.options)
-                if result.value.isdigit() else None
+            exact = [
+                o
+                for o in question.options
+                if normalize_text(result.value)
+                in {normalize_text(o.value), normalize_text(o.label)}
+            ]
+            option = (
+                exact[0]
+                if len(exact) == 1
+                else (
+                    _find_numeric_range_option(int(result.value), question.options)
+                    if result.value.isdigit()
+                    else None
+                )
             )
             if option is None:
                 return None
             return Answer(question.id, AnswerType.OPTION, option.value, 1.0, "database")
         return result
+
+    def _strict_fact(self, question: Question) -> Answer | None:
+        # Exact IDs are explicit answers. Keyword matches can describe another person,
+        # technology-specific experience, previous salary or a different declaration.
+        if question.id in self._ctx.custom_answers:
+            value = self._ctx.custom_answers[question.id]
+            return _make_answer(question, str(value)) if value is not None else None
+        labels = {
+            "name": "full name",
+            "full name": "full name",
+            "nome completo": "full name",
+            "first name": "first name",
+            "given name": "first name",
+            "nome": "first name",
+            "last name": "last name",
+            "surname": "last name",
+            "sobrenome": "last name",
+            "email": "email",
+            "e mail": "email",
+            "phone": "phone",
+            "phone number": "phone",
+            "telefone": "phone",
+            "celular": "phone",
+            "linkedin": "linkedin",
+            "linkedin profile": "linkedin",
+            "linkedin url": "linkedin",
+            "linkedin profile url": "linkedin",
+            "city": "city",
+            "cidade": "city",
+            "location": "city",
+            "current location": "city",
+            "country": "country",
+            "país": "country",
+            "country of residence": "country",
+            "nationality": "citizenship",
+            "citizenship": "citizenship",
+            "nacionalidade": "citizenship",
+            "total years of experience": "experience",
+            "anos de experiência profissional": "experience",
+            "education level": "education",
+            "escolaridade": "education",
+            "salary expectation": "salary",
+            "salary expectations": "salary",
+            "pretensão salarial": "salary",
+            "notice period": "availability",
+            "availability to start": "availability",
+            "gender": "gender",
+            "gênero": "gender",
+            "veteran status": "veteran",
+            "disability status": "disability",
+        }
+        label = normalize_text(question.question)
+        key = labels.get(label)
+        if key is None or question.question_complement:
+            return None
+        # Desired locations are preferences, not evidence of present residence.
+        if key == "city" and not self._ctx.location:
+            return None
+        if key == "country" and not self._ctx.country:
+            return None
+        return self._dispatch(key, question)
 
     def _match(self, question: Question) -> Answer | None:
         """Try to answer a question from candidate data.

@@ -50,3 +50,31 @@ def test_strict_no_substring_option_match():
         options=[QuestionOption("Not applicable", "na"), QuestionOption("No", "no")],
     )
     assert CommonMatcher(ctx, strict=True).match(q).value == "no"
+
+
+def test_strict_does_not_reuse_personal_fact_for_a_different_question():
+    context = CandidateContext(
+        1,
+        full_name="Candidate Example",
+        years_of_experience=12,
+        min_salary=10000,
+        custom_answers={"name": "Candidate Example"},
+    )
+    matcher = CommonMatcher(context, strict=True)
+    for label in [
+        "Nome da liderança direta",
+        "Nome de preferência",
+        "Years of experience with Rust",
+        "Previous salary",
+        "Manager email",
+    ]:
+        assert matcher.match(Question("other", label)) is None
+    assert matcher.match(Question("name", "Full name")).value == "Candidate Example"
+    assert matcher.match(Question("other", "Full name")).value == "Candidate Example"
+
+
+def test_strict_residence_does_not_use_job_search_target():
+    context = CandidateContext(1, target_country="Brazil", target_location="São Paulo")
+    matcher = CommonMatcher(context, strict=True)
+    assert matcher.match(Question("country", "Country")) is None
+    assert matcher.match(Question("location", "Current location")) is None
