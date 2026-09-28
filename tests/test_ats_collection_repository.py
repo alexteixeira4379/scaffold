@@ -36,11 +36,12 @@ def schema():
         Run.__table__.drop(c, checkfirst=True)
         metadata.drop_all(c)
         metadata.create_all(c)
-        path = os.path.join(os.path.dirname(__file__), "../migrations/core/versions/0048_ats_collection_cycles.py")
-        spec = importlib.util.spec_from_file_location("ats_revision", path)
-        revision = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(revision)
-        with Operations.context(MigrationContext.configure(c)): revision.upgrade()
+        for filename in ("0048_ats_collection_cycles.py", "0049_ats_collection_recovery.py"):
+            path = os.path.join(os.path.dirname(__file__), "../migrations/core/versions", filename)
+            spec = importlib.util.spec_from_file_location("ats_revision", path)
+            revision = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(revision)
+            with Operations.context(MigrationContext.configure(c)): revision.upgrade()
     yield
     with engine.begin() as c:
         Run.__table__.drop(c)
@@ -113,4 +114,133 @@ async def test_checkpoint_failure_and_completion_separate(schema):
         run = await session.get(Run, source.collection_cycle_id)
         assert (run.batches, run.observed, run.published, run.errors) == (1,12,11,1)
         assert await repo.claim(session, provider_codes=("unimplemented",), now=NOW, lease_seconds=60) is None
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_restart_budget_survives_new_cycles_progress_and_retry_until_completion(schema):
+    engine = create_async_engine(URL)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    repo = AtsCollectionRepository()
+    async with factory() as session:
+        await seed(session)
+    cycle_ids = []
+    for index in range(2):
+        at = NOW + timedelta(minutes=index)
+        async with factory() as session:
+            source, _, token = await repo.claim(session, provider_codes=("demo",), now=at,
+                                               lease_seconds=60, exclude_ids=(2,))
+            cycle_ids.append(source.collection_cycle_id)
+            assert source.collection_restarts == index
+            await session.commit()
+            await repo.release(session, source_id=1, cycle_id=cycle_ids[-1], token=token, now=at,
+                               status="restarted", next_at=at + timedelta(seconds=10),
+                               error_category="CheckpointExpiredError",
+                               error_detail={"stage": "checkpoint", "reason": "cursor_expired"})
+            await session.commit()
+        async with factory() as session:
+            saved = await session.get(Source, 1)
+            assert saved.collection_restarts == index + 1
+            assert saved.collection_cycle_id is None and saved.checkpoint_value == {}
+            run = await session.get(Run, cycle_ids[-1])
+            assert run.status == "restarted" and run.finished_at is not None
+            assert run.last_error_detail == {"stage": "checkpoint", "reason": "cursor_expired"}
+    assert cycle_ids[0] != cycle_ids[1]
+
+    at = NOW + timedelta(minutes=2)
+    checkpoint = {"version": 1, "provider": "demo", "state": {"offset": 10}}
+    async with factory() as session:
+        source, _, token = await repo.claim(session, provider_codes=("demo",), now=at,
+                                           lease_seconds=60, exclude_ids=(2,))
+        cycle_id = source.collection_cycle_id
+        assert cycle_id not in cycle_ids and source.collection_restarts == 2
+        await session.commit()
+        key = dict(source_id=1, cycle_id=cycle_id, token=token)
+        await repo.save_batch(session, **key, checkpoint=checkpoint, observed=10, published=7,
+                              discarded=3, now=at)
+        await session.commit()
+    async with factory() as session:
+        assert (await session.get(Source, 1)).collection_restarts == 2
+        assert (await session.get(Run, cycle_id)).discarded == 3
+        await repo.release(session, **key, now=at, status="retry", next_at=at+timedelta(seconds=10),
+                           failures=1, observed=4, published=1, discarded=2,
+                           error_category="TemporaryProviderError",
+                           error_detail={"stage": "fetch", "http_status": 429, "retry_after": 10})
+        await session.commit()
+    async with factory() as session:
+        saved = await session.get(Source, 1)
+        run = await session.get(Run, cycle_id)
+        assert saved.collection_restarts == 2 and saved.checkpoint_value == checkpoint
+        assert saved.last_collected_at is None
+        assert (run.observed, run.published, run.discarded, run.errors) == (14, 8, 5, 1)
+        assert run.last_error_detail == {"stage": "fetch", "http_status": 429, "retry_after": 10}
+
+    at += timedelta(seconds=11)
+    async with factory() as session:
+        source, _, token = await repo.claim(session, provider_codes=("demo",), now=at,
+                                           lease_seconds=60, exclude_ids=(2,))
+        assert source.collection_cycle_id == cycle_id and source.collection_restarts == 2
+        await session.commit()
+        await repo.release(session, source_id=1, cycle_id=cycle_id, token=token, now=at,
+                           status="paused", next_at=at+timedelta(seconds=1))
+        await session.commit()
+    async with factory() as session:
+        assert (await session.get(Source, 1)).collection_restarts == 2
+    at += timedelta(seconds=2)
+    async with factory() as session:
+        source, _, token = await repo.claim(session, provider_codes=("demo",), now=at,
+                                           lease_seconds=60, exclude_ids=(2,))
+        await session.commit()
+        await repo.release(session, source_id=1, cycle_id=cycle_id, token=token, now=at,
+                           status="completed", next_at=at+timedelta(days=4))
+        await session.commit()
+    async with factory() as session:
+        saved = await session.get(Source, 1)
+        run = await session.get(Run, cycle_id)
+        assert saved.collection_restarts == 0 and saved.checkpoint_value == {}
+        assert saved.last_collected_at == at.replace(tzinfo=None)
+        assert saved.next_collection_at == (at+timedelta(days=4)).replace(tzinfo=None)
+        assert run.discarded == 5 and run.status == "completed"
+        assert run.last_error_detail == {"stage": "fetch", "http_status": 429, "retry_after": 10}
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_stale_executor_cannot_write_diagnostics_restart_or_discarded(schema):
+    engine = create_async_engine(URL)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    repo = AtsCollectionRepository()
+    async with factory() as session:
+        await seed(session)
+        source, _, old_token = await repo.claim(session, provider_codes=("demo",), now=NOW,
+                                               lease_seconds=60, exclude_ids=(2,))
+        cycle_id = source.collection_cycle_id
+        await session.commit()
+    at = NOW + timedelta(seconds=61)
+    async with factory() as session:
+        _, _, token = await repo.claim(session, provider_codes=("demo",), now=at,
+                                        lease_seconds=60, exclude_ids=(2,))
+        await session.commit()
+        await repo.save_batch(session, source_id=1, cycle_id=cycle_id, token=token,
+                              checkpoint={"owner": "new"}, observed=3, published=1, discarded=2, now=at)
+        await session.commit()
+    for operation in ("batch", "restarted", "completed", "retry"):
+        async with factory() as session:
+            with pytest.raises(LeaseLostError):
+                key = dict(source_id=1, cycle_id=cycle_id, token=old_token, now=at)
+                if operation == "batch":
+                    await repo.save_batch(session, **key, checkpoint={"owner": "stale"},
+                                          observed=99, published=99, discarded=99)
+                else:
+                    await repo.release(session, **key, status=operation, next_at=at,
+                                       discarded=99, error_category="stale", error_detail={"stale": True})
+            await session.rollback()
+    async with factory() as session:
+        saved = await session.get(Source, 1)
+        run = await session.get(Run, cycle_id)
+        assert saved.collection_lease_token == token
+        assert saved.collection_state == "running" and saved.collection_restarts == 0
+        assert saved.checkpoint_value == {"owner": "new"} and saved.last_collected_at is None
+        assert (run.observed, run.published, run.discarded, run.errors) == (3, 1, 2, 0)
+        assert run.last_error_detail is None and run.last_error_category is None
     await engine.dispose()

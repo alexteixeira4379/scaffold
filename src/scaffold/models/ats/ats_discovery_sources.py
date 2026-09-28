@@ -63,6 +63,7 @@ class AtsDiscoverySource(CoreBase):
     collection_cycle_id: Mapped[str | None] = mapped_column(String(36))
     collection_lease_token: Mapped[str | None] = mapped_column(String(36))
     collection_lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    collection_restarts: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     collection_failures: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

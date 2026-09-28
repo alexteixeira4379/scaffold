@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, Index
+from sqlalchemy import JSON, BigInteger, DateTime, ForeignKey, Integer, String, Index
 from sqlalchemy.orm import Mapped, mapped_column
 from scaffold.base import CoreBase
 
@@ -18,5 +18,7 @@ class AtsCollectionRun(CoreBase):
     observed: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     published: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     errors: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    discarded: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    last_error_detail: Mapped[dict | None] = mapped_column(JSON)
     last_error_category: Mapped[str | None] = mapped_column(String(64))
     next_execution_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

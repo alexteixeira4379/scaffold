@@ -42,6 +42,8 @@ class AtsCollectionRepository:
             return None
         token = str(uuid4())
         if not source.collection_cycle_id or source.collection_state in ("idle", "completed"):
+            if source.collection_state in ("idle", "completed"):
+                source.collection_restarts = 0
             source.collection_cycle_id = str(uuid4())
             source.checkpoint_value = {}
             source.collection_failures = 0
@@ -76,29 +78,31 @@ class AtsCollectionRepository:
             "checkpoint_updated_at": now,
         })
 
-    async def save_batch(self, session, *, source_id, cycle_id, token, checkpoint, observed, published, now):
+    async def save_batch(self, session, *, source_id, cycle_id, token, checkpoint, observed, published, now, discarded=0):
         await self._fence(session, source_id, token, now, {
             "checkpoint_key": "ats-provider-v1", "checkpoint_value": checkpoint,
             "checkpoint_updated_at": now, "collection_failures": 0,
         })
         await session.execute(update(Run).where(Run.id == cycle_id).values(
             batches=Run.batches + 1, observed=Run.observed + observed,
-            published=Run.published + published))
+            published=Run.published + published, discarded=Run.discarded + discarded))
 
     async def release(self, session, *, source_id, cycle_id, token, now, status,
-                      next_at, failures=0, error_category=None, observed=0, published=0):
+                      next_at, failures=0, error_category=None, observed=0, published=0, discarded=0, error_detail=None):
         values = {"collection_state": status, "next_collection_at": next_at,
                   "collection_lease_token": None, "collection_lease_until": None,
                   "collection_failures": failures}
         if status == "completed":
-            values.update(last_collected_at=now, checkpoint_value={}, checkpoint_key=None)
+            values.update(last_collected_at=now, checkpoint_value={}, checkpoint_key=None, collection_restarts=0)
         if status == "restarted":
-            values.update(collection_cycle_id=None, checkpoint_value={}, checkpoint_key=None)
+            values.update(collection_cycle_id=None, checkpoint_value={}, checkpoint_key=None,
+                          collection_restarts=Source.collection_restarts + 1)
         await self._fence(session, source_id, token, now, values)
         updates = dict(status=status, next_execution_at=next_at,
-                       observed=Run.observed + observed, published=Run.published + published)
+                       observed=Run.observed + observed, published=Run.published + published,
+                       discarded=Run.discarded + discarded)
         if error_category:
-            updates.update(errors=Run.errors + 1, last_error_category=error_category)
+            updates.update(errors=Run.errors + 1, last_error_category=error_category, last_error_detail=error_detail)
         if status in ("completed", "restarted", "blocked"):
             updates["finished_at"] = now
         await session.execute(update(Run).where(Run.id == cycle_id).values(**updates))
