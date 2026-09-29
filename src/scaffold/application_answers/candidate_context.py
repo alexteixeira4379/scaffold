@@ -95,6 +95,9 @@ async def load_candidate_context(
                 session, candidate_id, limit=1
             )
             resume = resumes[0] if resumes else None
+        if resume is not None:
+            ctx.resume_version_id = resume.id
+            ctx.resume_content = resume.content
         if resume is not None and resume.storage_url and storage_client is not None:
             ctx.resume_local_path = await _download_file(
                 storage_client, resume.storage_url, f"resume_{candidate_id}"

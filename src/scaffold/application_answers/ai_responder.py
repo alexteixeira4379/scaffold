@@ -30,12 +30,15 @@ _AI_MAX_TOKENS_BATCH = 2000
 class AIResponder:
     """Fallback responder that uses an LLM to answer application questions."""
 
-    def __init__(self, ai_client: AIClient, *, strict: bool = False) -> None:
+    def __init__(self, ai_client: AIClient, *, strict: bool = False, contextual: bool = False) -> None:
         self._strict = strict
+        self._contextual = contextual
         self._ai = ai_client
 
     async def answer(self, question: Question, context: CandidateContext) -> Answer:
         """Answer a single question using AI."""
+        if self._contextual:
+            return (await self._answer_contextual([question], context))[0]
         if self._strict:
             return (await self._answer_grounded([question], context))[0]
         prompt = build_single_question_prompt(question, context, strict=self._strict)
@@ -57,6 +60,9 @@ class AIResponder:
         """Answer multiple questions in a single AI call."""
         if not questions:
             return []
+
+        if self._contextual:
+            return await self._answer_contextual(questions, context)
 
         if self._strict:
             return await self._answer_grounded(questions, context)
@@ -97,6 +103,22 @@ class AIResponder:
             else:
                 answers.append(self._default_answer(question))
 
+        return answers
+
+    async def _answer_contextual(self, questions, context):
+        from scaffold.application_answers.contextual import POLICY, build_prompt, validate
+
+        result = await self._ai.basic(
+            build_prompt(questions, context), ResponseMode.JSON,
+            system=POLICY, temperature=0, max_tokens=6000,
+        )
+        data = result.as_json()
+        if not isinstance(data, dict):
+            data = {}
+        answers = [validate(q, data.get(q.id), context) for q in questions]
+        for answer in answers:
+            logger.info("contextual_answer question_id=%s source=%s basis=%s",
+                        answer.question_id, answer.source, answer.basis)
         return answers
 
     async def _answer_grounded(self, questions, context):

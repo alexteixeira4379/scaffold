@@ -175,8 +175,9 @@ _EXCLUDE_WORK_AUTH = ["work", "authorized", "autorizado", "permissão", "visto",
 class CommonMatcher:
     """Deterministic matcher that resolves questions from candidate data."""
 
-    def __init__(self, context: CandidateContext, *, strict: bool = False) -> None:
+    def __init__(self, context: CandidateContext, *, strict: bool = False, contextual: bool = False) -> None:
         self._strict = strict
+        self._contextual = contextual
         self._ctx = context
         self._dispatch_table: dict[str, object] = {
             "phone country code": self._handle_phone_country_code,
@@ -203,7 +204,19 @@ class CommonMatcher:
 
     def match(self, question: Question) -> Answer | None:
         from scaffold.application_answers.personal_facts import match_personal_fact
-        personal = match_personal_fact(question, self._ctx)
+        if self._contextual and question.field_type.startswith("file"):
+            result = (self._handle_cover_letter(question) if "cover" in question.field_type
+                      else self._handle_resume(question))
+            return result or Answer(question.id, AnswerType.SKIP, "", 0.0, "unresolved")
+        if self._contextual and question.field_type == "consent":
+            value = self._ctx.custom_answers.get(question.id)
+            if value is None:
+                return Answer(question.id, AnswerType.SKIP, "", 0.0, "unresolved")
+            if question.options and str(value) not in {o.value for o in question.options}:
+                return Answer(question.id, AnswerType.SKIP, "", 0.0, "unresolved")
+            return Answer(question.id, AnswerType.OPTION if question.options else AnswerType.TEXT,
+                          str(value), 1.0, "database")
+        personal = match_personal_fact(question, self._ctx, contextual=self._contextual)
         if personal is not None:
             return personal
         if not self._strict:

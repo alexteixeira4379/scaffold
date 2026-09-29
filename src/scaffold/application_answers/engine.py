@@ -41,7 +41,7 @@ class AnswerEngine:
         session_factory: async_sessionmaker[AsyncSession],
         storage_client: StoragePort | None = None,
         ai_client: AIClient | None = None,
-        *, strict: bool = False,
+        *, strict: bool = False, contextual: bool = False,
     ) -> None:
         """Initialize the AnswerEngine.
 
@@ -50,7 +50,8 @@ class AnswerEngine:
             storage_client: Optional StoragePort implementation for file downloads.
             ai_client: Optional scaffold AIClient. If None, AI fallback is disabled.
         """
-        self._strict = strict
+        self._strict = strict or contextual
+        self._contextual = contextual
         self._session_factory = session_factory
         self._storage_client = storage_client
         self._ai_client = ai_client
@@ -75,9 +76,9 @@ class AnswerEngine:
             storage_client=self._storage_client,
             **({"resume_version_id": resume_version_id} if resume_version_id is not None else {}),
         )
-        self._matcher = CommonMatcher(self._context, strict=self._strict)
+        self._matcher = CommonMatcher(self._context, strict=self._strict, contextual=self._contextual)
         if self._ai_client is not None:
-            self._ai_responder = AIResponder(self._ai_client, strict=self._strict)
+            self._ai_responder = AIResponder(self._ai_client, strict=self._strict, contextual=self._contextual)
 
         logger.info(
             "answer_engine_loaded candidate_id=%d has_resume=%s has_ai=%s",

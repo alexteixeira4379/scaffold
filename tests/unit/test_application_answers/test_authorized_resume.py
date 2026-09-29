@@ -35,6 +35,26 @@ async def test_explicit_resume_never_uses_latest(monkeypatch, owner):
     assert get.await_args.args[1] == 55
 
 
+async def test_latest_resume_content_matches_downloaded_file(monkeypatch):
+    factory = MagicMock()
+    factory.return_value.__aenter__ = AsyncMock(return_value=object())
+    factory.return_value.__aexit__ = AsyncMock(return_value=False)
+    candidate = SimpleNamespace(full_name='Test', email='test@example.org', phone=None,
+                                country=None, location=None, linkedin_url=None)
+    resume = SimpleNamespace(id=55, content='Python engineer', storage_url='resume/55.pdf')
+    monkeypatch.setattr(loader.candidate_repository, 'get', AsyncMock(return_value=candidate))
+    monkeypatch.setattr(loader.candidate_preference_repository, 'get_by_candidate_id', AsyncMock(return_value=None))
+    monkeypatch.setattr(loader, '_load_application_data', AsyncMock(return_value=None))
+    monkeypatch.setattr(loader.resume_version_repository, 'list_by_candidate_id', AsyncMock(return_value=[resume]))
+    monkeypatch.setattr(loader.cover_letter_version_repository, 'list_by_candidate_id', AsyncMock(return_value=[]))
+    download = AsyncMock(return_value='/tmp/resume55.pdf')
+    monkeypatch.setattr(loader, '_download_file', download)
+    storage = object()
+    ctx = await loader.load_candidate_context(factory, 42, storage_client=storage)
+    assert (ctx.resume_version_id, ctx.resume_content, ctx.resume_local_path) == (55, 'Python engineer', '/tmp/resume55.pdf')
+    download.assert_awaited_once_with(storage, 'resume/55.pdf', 'resume_42')
+
+
 def test_strict_prompt_contains_authorized_resume_and_all_options():
     ctx = CandidateContext(42, resume_version_id=55, resume_content='Python since 2015')
     q = Question('salary', 'Salary?', is_required=True,

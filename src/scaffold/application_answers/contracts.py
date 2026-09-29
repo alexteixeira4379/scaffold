@@ -41,6 +41,10 @@ class Question:
     is_required: bool = False
     options: list[QuestionOption] | None = None
     current_value: str | None = None
+    field_type: str = "text"
+    max_length: int | None = None
+    min_value: float | None = None
+    max_value: float | None = None
 
 
 @dataclass
@@ -50,6 +54,7 @@ class Answer:
     value: str
     confidence: float = 1.0
     source: str = "unknown"
+    basis: list[str] = field(default_factory=list)
 
 
 @dataclass

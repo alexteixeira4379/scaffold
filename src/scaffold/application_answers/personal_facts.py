@@ -31,7 +31,7 @@ DECLINE_LABELS = {
 }
 
 
-def match_personal_fact(question: Question, context: CandidateContext) -> Answer | None:
+def match_personal_fact(question: Question, context: CandidateContext, *, contextual: bool = False) -> Answer | None:
     label = normalized(question.question)
     field = None
     patterns = (
@@ -57,6 +57,11 @@ def match_personal_fact(question: Question, context: CandidateContext) -> Answer
             break
     if field is None:
         return None
+    # Preferences and compensation require semantic interpretation when the exact
+    # deterministic mapping does not apply. Never substitute a generic matcher.
+    if contextual and field in {"min_salary", "employment_preference", "remote_preferences"}:
+        result = match_personal_fact(question, context)
+        return result if result and result.type != AnswerType.SKIP else None
     unresolved = Answer(question.id, AnswerType.SKIP, "", 0.0, "unresolved")
     if any(word in label for word in ("familiar", "family", "colega", "colleague", "parentes")):
         return unresolved
