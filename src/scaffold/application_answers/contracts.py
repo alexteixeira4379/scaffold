@@ -55,6 +55,7 @@ class Answer:
     confidence: float = 1.0
     source: str = "unknown"
     basis: list[str] = field(default_factory=list)
+    rejection_reason: str | None = None
 
 
 @dataclass

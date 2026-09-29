@@ -64,44 +64,54 @@ def build_prompt(questions: list[Question], context: CandidateContext) -> str:
     }, ensure_ascii=False)
 
 
-def unresolved(question: Question) -> Answer:
-    return Answer(question.id, AnswerType.SKIP, "", 0.0, "unresolved")
+def unresolved(question: Question, reason: str = "unresolved") -> Answer:
+    return Answer(question.id, AnswerType.SKIP, "", 0.0, "unresolved", rejection_reason=reason)
 
 
 def validate(question: Question, record: object, context: CandidateContext) -> Answer:
     if not isinstance(record, dict):
-        return unresolved(question)
+        return unresolved(question, "missing_record" if record is None else "invalid_record")
     value, kind, basis = record.get("answer"), record.get("kind"), record.get("basis")
-    if (not isinstance(value, str) or not value.strip()
-            or kind not in {"direct", "derived", "inferred", "qualified"}
-            or not isinstance(basis, list)):
-        return unresolved(question)
+    if kind == "unresolved":
+        return unresolved(question, "model_unresolved")
+    if not isinstance(value, str):
+        return unresolved(question, "invalid_answer_type")
+    if not value.strip():
+        return unresolved(question, "empty_answer")
+    if not isinstance(kind, str) or kind not in {"direct", "derived", "inferred", "qualified"}:
+        return unresolved(question, "invalid_kind")
+    if not isinstance(basis, list):
+        return unresolved(question, "invalid_basis_type")
     available = facts(context)
     if any(not isinstance(key, str) or key not in available or available[key] in (None, "", [], {})
            for key in basis):
-        return unresolved(question)
+        return unresolved(question, "invalid_basis_reference")
     if kind != "qualified" and not basis:
-        return unresolved(question)
+        return unresolved(question, "missing_basis")
     value = value.strip()
     if question.field_type == "consent":
-        return unresolved(question)  # Consent must be resolved locally from explicit answers.
+        return unresolved(question, "explicit_consent_required")
     if question.options and value not in {o.value for o in question.options}:
-        return unresolved(question)
+        # Convert only an unambiguous exact label. Do not guess or pick by position.
+        matches = {o.value for o in question.options if o.label.strip() == value}
+        if len(matches) != 1:
+            return unresolved(question, "ambiguous_option_label" if matches else "invalid_option")
+        value = matches.pop()
     if question.max_length is not None and len(value) > question.max_length:
-        return unresolved(question)
+        return unresolved(question, "max_length_exceeded")
     if question.field_type in {"number", "numeric"} and not question.options:
         if kind == "qualified":
-            return unresolved(question)
+            return unresolved(question, "qualified_numeric_answer")
         try:
             number = Decimal(value)
             if not number.is_finite():
-                return unresolved(question)
+                return unresolved(question, "nonfinite_number")
             if question.min_value is not None and number < Decimal(str(question.min_value)):
-                return unresolved(question)
+                return unresolved(question, "below_minimum")
             if question.max_value is not None and number > Decimal(str(question.max_value)):
-                return unresolved(question)
+                return unresolved(question, "above_maximum")
         except InvalidOperation:
-            return unresolved(question)
+            return unresolved(question, "invalid_number")
     confidence = {"direct": 0.95, "derived": 0.9, "inferred": 0.75, "qualified": 0.6}[kind]
     return Answer(question.id, AnswerType.OPTION if question.options else AnswerType.TEXT,
                   value, confidence, f"ai_{kind}", basis)

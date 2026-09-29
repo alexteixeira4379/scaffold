@@ -106,19 +106,34 @@ class AIResponder:
         return answers
 
     async def _answer_contextual(self, questions, context):
-        from scaffold.application_answers.contextual import POLICY, build_prompt, validate
+        from scaffold.application_answers.contextual import POLICY, build_prompt, unresolved, validate
 
-        result = await self._ai.basic(
-            build_prompt(questions, context), ResponseMode.JSON,
-            system=POLICY, temperature=0, max_tokens=6000,
-        )
-        data = result.as_json()
+        try:
+            result = await self._ai.basic(
+                build_prompt(questions, context), ResponseMode.JSON,
+                system=POLICY, temperature=0, max_tokens=6000,
+            )
+        except Exception as exc:
+            # Provider errors may contain candidate data: log the type, never the body.
+            reason = ("invalid_json_response" if isinstance(exc.__cause__, ValueError)
+                      else "ai_call_failed")
+            logger.warning("contextual_batch_failed candidate_id=%s resume_version_id=%s "
+                           "stage=ai_call error_type=%s reason=%s question_count=%s",
+                           context.candidate_id, context.resume_version_id,
+                           type(exc).__name__, reason, len(questions))
+            return [unresolved(q, reason) for q in questions]
+        try:
+            data = result.as_json()
+        except (ValueError, TypeError):
+            return [unresolved(q, "invalid_json_response") for q in questions]
         if not isinstance(data, dict):
-            data = {}
+            return [unresolved(q, "invalid_batch_shape") for q in questions]
         answers = [validate(q, data.get(q.id), context) for q in questions]
         for answer in answers:
-            logger.info("contextual_answer question_id=%s source=%s basis=%s",
-                        answer.question_id, answer.source, answer.basis)
+            logger.info("contextual_answer candidate_id=%s resume_version_id=%s "
+                        "question_id=%s source=%s reason=%s",
+                        context.candidate_id, context.resume_version_id,
+                        answer.question_id, answer.source, answer.rejection_reason)
         return answers
 
     async def _answer_grounded(self, questions, context):
