@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
@@ -33,7 +34,8 @@ Preserve supplied salary currency/period; arithmetic period conversion is allowe
 when units are explicit, but do not guess exchange rates or historical compensation.
 Return one JSON object keyed by question id, each value containing:
 answer (string), kind (direct|derived|inferred|qualified|unresolved),
-basis (list of relevant top-level candidate context keys).
+basis (list of relevant candidate context keys from available_basis).
+Use those exact keys, e.g. ["authorized_resume"], not quotations or explanations.
 Basis identifies the supplied inputs, not a verbatim quote or a reasoning transcript.
 For qualified/unresolved answers basis may be empty. Unresolved answer must be empty.
 """
@@ -42,6 +44,15 @@ For qualified/unresolved answers basis may be empty. Unresolved answer must be e
 def facts(context: CandidateContext) -> dict:
     # CPF is resolved locally, never included in this general LLM context.
     data = strict_candidate_facts(context)
+    resume = data.get("authorized_resume")
+    if resume and isinstance(resume.get("content"), str):
+        try:
+            structured = json.loads(resume["content"])
+        except (ValueError, TypeError):
+            pass
+        else:
+            if isinstance(structured, (dict, list)):
+                resume["content"] = structured
     data["salary_period"] = "monthly"
     for name in ("race_color", "sexual_orientation", "disability_types",
                  "disability_cids", "accessibility_resources"):
@@ -55,6 +66,7 @@ def build_prompt(questions: list[Question], context: CandidateContext) -> str:
     return json.dumps({
         "today": date.today().isoformat(),
         "candidate": facts(context),
+        "available_basis": [k for k, v in facts(context).items() if v not in (None, "", [], {})],
         "questions": [{
             "id": q.id, "question": q.question, "context": q.question_complement,
             "required": q.is_required, "type": q.field_type,
@@ -66,6 +78,48 @@ def build_prompt(questions: list[Question], context: CandidateContext) -> str:
 
 def unresolved(question: Question, reason: str = "unresolved") -> Answer:
     return Answer(question.id, AnswerType.SKIP, "", 0.0, "unresolved", rejection_reason=reason)
+
+
+def resolve_basis(reference: object, available: dict) -> str | None:
+    """Resolve input keys and real nested paths; never accept a guessed parent."""
+    if not isinstance(reference, str):
+        return None
+    path = reference.strip()
+    if path.startswith("$."):
+        path = path[2:]
+    if path.startswith("candidate."):
+        path = path[len("candidate."):]
+    # Preserve exact keys (custom answer IDs may contain punctuation).
+    if path in available and available[path] not in (None, "", [], {}):
+        return path
+    # Models sometimes cite a resume section by its unqualified key. Accept only
+    # a unique populated section, never an invented key or an ambiguous match.
+    if "." not in path and "[" not in path:
+        matches = []
+        def visit(node, root):
+            if isinstance(node, dict):
+                for key, child in node.items():
+                    if key == path and child not in (None, "", [], {}):
+                        matches.append(root)
+                    visit(child, root)
+            elif isinstance(node, list):
+                for child in node:
+                    visit(child, root)
+        for root, child in available.items():
+            visit(child, root)
+        if len(matches) == 1:
+            return matches[0]
+    path = re.sub(r"\[(\d+)\]", r".\1", path)
+    parts = path.split(".")
+    value = available
+    for part in parts:
+        if isinstance(value, dict) and part in value:
+            value = value[part]
+        elif isinstance(value, list) and part.isdigit() and int(part) < len(value):
+            value = value[int(part)]
+        else:
+            return None
+    return parts[0] if value not in (None, "", [], {}) else None
 
 
 def validate(question: Question, record: object, context: CandidateContext) -> Answer:
@@ -83,8 +137,8 @@ def validate(question: Question, record: object, context: CandidateContext) -> A
     if not isinstance(basis, list):
         return unresolved(question, "invalid_basis_type")
     available = facts(context)
-    if any(not isinstance(key, str) or key not in available or available[key] in (None, "", [], {})
-           for key in basis):
+    normalized_basis = [resolve_basis(key, available) for key in basis]
+    if any(key is None for key in normalized_basis):
         return unresolved(question, "invalid_basis_reference")
     if kind != "qualified" and not basis:
         return unresolved(question, "missing_basis")
@@ -114,4 +168,4 @@ def validate(question: Question, record: object, context: CandidateContext) -> A
             return unresolved(question, "invalid_number")
     confidence = {"direct": 0.95, "derived": 0.9, "inferred": 0.75, "qualified": 0.6}[kind]
     return Answer(question.id, AnswerType.OPTION if question.options else AnswerType.TEXT,
-                  value, confidence, f"ai_{kind}", basis)
+                  value, confidence, f"ai_{kind}", list(dict.fromkeys(normalized_basis)))

@@ -67,6 +67,12 @@ def match_personal_fact(question: Question, context: CandidateContext, *, contex
         return unresolved
     value = getattr(context, field, None)
     if value is None or value == "" or value == []:
+        # Complete optional self-identification without fabricating a personal trait.
+        if contextual and field in {"disability_status", "disability_types", "disability_cids",
+                                    "race_color", "sexual_orientation", "gender", "sex_unavailable"}:
+            decline = [o for o in question.options or [] if normalized(o.label) in DECLINE_LABELS]
+            if len(decline) == 1:
+                return Answer(question.id, AnswerType.OPTION, decline[0].value, 1.0, "non_disclosure")
         return unresolved
     aliases: set[str] = set()
     # Keep contract preferences as the platform convention, never as employment history.

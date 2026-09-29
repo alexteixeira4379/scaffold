@@ -132,7 +132,7 @@ def test_duplicate_labels_do_not_guess(context):
     (None, "missing_record"),
     ("Senior", "invalid_record"),
     ({"answer": "Senior", "kind": [], "basis": []}, "invalid_kind"),
-    ({"answer": "Senior", "kind": "direct", "basis": ["authorized_resume.content"]}, "invalid_basis_reference"),
+    ({"answer": "Senior", "kind": "direct", "basis": ["authorized_resume.missing"]}, "invalid_basis_reference"),
     ({"answer": "", "kind": "unresolved", "basis": []}, "model_unresolved"),
 ])
 def test_diagnostic_reasons(context, record, reason):
@@ -171,3 +171,63 @@ async def test_batch_failure_reasons_without_raw_data(monkeypatch, context, mode
     assert answer.rejection_reason == reason
     assert "PRIVATE_RESPONSE_BODY" not in caplog.text
     ai.basic.assert_awaited_once()
+
+
+@pytest.mark.parametrize("reference", ["authorized_resume.content", "candidate.authorized_resume.content",
+                                      "$.candidate.authorized_resume.content", " authorized_resume "])
+def test_existing_nested_basis_is_normalized(context, reference):
+    answer = validate(Question("q", "Technology?"),
+                      {"answer": "Python", "kind": "derived", "basis": [reference]}, context)
+    assert answer.value == "Python"
+    assert answer.basis == ["authorized_resume"]
+
+
+@pytest.mark.parametrize("reference", ["authorized_resume.missing", "candidate.missing", "email",
+                                      "authorized_resume.content.missing", 12, {}, None])
+def test_basis_must_resolve_to_nonempty_value(context, reference):
+    answer = validate(Question("q", "Technology?"),
+                      {"answer": "Python", "kind": "derived", "basis": [reference]}, context)
+    assert answer.rejection_reason == "invalid_basis_reference"
+
+
+def test_basis_list_index_and_false_are_real_values(context):
+    from scaffold.application_answers.contextual import resolve_basis
+    assert resolve_basis("candidate.skills[0]", {"skills": ["Python"]}) == "skills"
+    assert resolve_basis("skills[1]", {"skills": ["Python"]}) is None
+    assert resolve_basis("flag", {"flag": False}) == "flag"
+    assert resolve_basis("years", {"years": 0}) == "years"
+
+
+def test_production_candidate_prefix_and_structured_resume(context):
+    context.resume_content = json.dumps({"experiences": [{"role": "Engineer"}]})
+    for reference in ("candidate.min_salary", "candidate.authorized_resume.content.experiences",
+                      "candidate.authorized_resume.content.experiences[0].role"):
+        answer = validate(Question("q", "Question"),
+                          {"answer": "Answer", "kind": "derived", "basis": [reference]}, context)
+        assert answer.type == AnswerType.TEXT
+    assert isinstance(json.loads(build_prompt([], context))["candidate"]["authorized_resume"]["content"], dict)
+
+
+def test_missing_sensitive_fact_uses_only_offered_non_disclosure():
+    from scaffold.application_answers.personal_facts import match_personal_fact
+    ctx = CandidateContext(42)
+    q = Question('q', 'Você é uma Pessoa com Deficiência?', options=[
+        QuestionOption('Sim', 'yes'), QuestionOption('Não', 'no'),
+        QuestionOption('Prefiro não responder', 'decline')])
+    assert match_personal_fact(q, ctx, contextual=True).value == 'decline'
+    ctx.disability_status = 'no'
+    assert match_personal_fact(q, ctx, contextual=True).value == 'no'
+    ctx.disability_status = None
+    q.options = q.options[:2]
+    assert match_personal_fact(q, ctx, contextual=True).type == AnswerType.SKIP
+
+
+def test_unique_resume_section_aliases(context):
+    from scaffold.application_answers.contextual import resolve_basis
+    data = {"authorized_resume": {"content": {"languages": ["English"], "experiences": ["Engineer"]}}}
+    assert resolve_basis("languages", data) == "authorized_resume"
+    assert resolve_basis("experiences", data) == "authorized_resume"
+    assert resolve_basis("candidate.languages", data) == "authorized_resume"
+    assert resolve_basis("skills", data) is None
+    data["other"] = {"languages": ["Portuguese"]}
+    assert resolve_basis("languages", data) is None
