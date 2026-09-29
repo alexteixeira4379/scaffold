@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 import re
+import time
+import uuid
 
 from scaffold.ai import AIClient, ResponseMode
 from scaffold.application_answers.contracts import (
@@ -108,12 +110,19 @@ class AIResponder:
     async def _answer_contextual(self, questions, context):
         from scaffold.application_answers.contextual import POLICY, build_prompt, unresolved, validate
 
+        batch_id = uuid.uuid4().hex
+        started = time.monotonic()
+        logger.info("contextual_batch_started batch_id=%s candidate_id=%s resume_version_id=%s question_ids=%s",
+                    batch_id, context.candidate_id, context.resume_version_id, [q.id for q in questions])
         try:
             result = await self._ai.basic(
                 build_prompt(questions, context), ResponseMode.JSON,
                 system=POLICY, temperature=0, max_tokens=6000,
             )
         except Exception as exc:
+            logger.warning("contextual_call_failed batch_id=%s duration_ms=%s error_type=%s cause_type=%s",
+                           batch_id, int((time.monotonic() - started) * 1000), type(exc).__name__,
+                           type(exc.__cause__).__name__ if exc.__cause__ else None)
             # Provider errors may contain candidate data: log the type, never the body.
             reason = ("invalid_json_response" if isinstance(exc.__cause__, ValueError)
                       else "ai_call_failed")
@@ -125,11 +134,22 @@ class AIResponder:
         try:
             data = result.as_json()
         except (ValueError, TypeError):
+            logger.warning("contextual_parse_failed batch_id=%s reason=invalid_json_response", batch_id)
             return [unresolved(q, "invalid_json_response") for q in questions]
         if not isinstance(data, dict):
+            logger.warning("contextual_parse_failed batch_id=%s reason=invalid_batch_shape shape=%s", batch_id, type(data).__name__)
             return [unresolved(q, "invalid_batch_shape") for q in questions]
+        logger.info("contextual_response_received batch_id=%s duration_ms=%s returned_count=%s missing_ids=%s unexpected_count=%s",
+                    batch_id, int((time.monotonic() - started) * 1000), len(data),
+                    [q.id for q in questions if q.id not in data], len(set(data) - {q.id for q in questions}))
         answers = [validate(q, data.get(q.id), context) for q in questions]
-        for answer in answers:
+        for question, answer in zip(questions, answers):
+            record = data.get(question.id)
+            record = record if isinstance(record, dict) else {}
+            logger.info("contextual_validation batch_id=%s question_id=%s record_type=%s answer_type=%s basis_type=%s option_count=%s reason=%s",
+                        batch_id, question.id, type(data.get(question.id)).__name__,
+                        type(record.get("answer")).__name__, type(record.get("basis")).__name__,
+                        len(question.options or []), answer.rejection_reason)
             logger.info("contextual_answer candidate_id=%s resume_version_id=%s "
                         "question_id=%s source=%s reason=%s",
                         context.candidate_id, context.resume_version_id,
