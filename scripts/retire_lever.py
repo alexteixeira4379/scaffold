@@ -18,7 +18,7 @@ import os
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from sqlalchemy import MetaData, and_, create_engine, or_, select, text
+from sqlalchemy import MetaData, and_, create_engine, func, or_, select, text
 
 HOSTS = {"jobs.lever.co", "jobs.eu.lever.co", "api.lever.co", "api.eu.lever.co"}
 PROTECTED = {"candidates", "companies", "professional_entities", "application_entitlements"}
@@ -208,9 +208,16 @@ def main():
             if selected.get("application_authorizations"):
                 table = metadata.tables["application_authorizations"]
                 conn.execute(table.update().where(row_filter(table, selected[table.name])).values(status="retired"))
+            if args.mode == "pause" and selected.get("jobs"):
+                table = metadata.tables["jobs"]
+                for offset in range(0, len(selected["jobs"]), 300):
+                    conn.execute(table.update().where(row_filter(table, selected["jobs"][offset:offset + 300]))
+                                 .values(status="archived"))
             if args.mode == "purge":
                 if args.expected_jobs is None or counts.get("jobs") != args.expected_jobs:
                     raise RuntimeError("Reviewed job count changed")
+                jobs = metadata.tables["jobs"]
+                unrelated_jobs = conn.execute(select(func.count()).select_from(jobs)).scalar_one() - counts["jobs"]
                 # Actual FK order; non-FK outbox/authorization/execution rows also removed.
                 order = list(reversed(metadata.sorted_tables))
                 for table in order:
@@ -220,7 +227,10 @@ def main():
                 remaining, _ = collect(conn, metadata)
                 if any(remaining.values()):
                     raise RuntimeError("Retirement verification failed; rolling back")
+                if conn.execute(select(func.count()).select_from(jobs)).scalar_one() != unrelated_jobs:
+                    raise RuntimeError("Unrelated job count changed; rolling back")
                 report["remaining_jobs"] = 0
+                report["preserved_other_jobs"] = unrelated_jobs
         print(json.dumps(report, sort_keys=True))
     engine.dispose()
 
