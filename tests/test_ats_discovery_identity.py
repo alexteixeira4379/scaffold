@@ -37,3 +37,8 @@ def test_ambiguous_legacy_source_stays_untouched():
     )
     _identity_before_write(None, None, source)
     assert source.canonical_identity_hash is None
+
+
+@pytest.mark.parametrize("host", ["jobs.lever.co", "jobs.eu.lever.co", "api.lever.co", "api.eu.lever.co"])
+def test_retired_provider_is_not_identified(host):
+    assert identify(f"https://{host}/acme/123") is None

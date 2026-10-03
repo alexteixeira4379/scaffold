@@ -8,7 +8,6 @@ from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 PROVIDERS = {
     "greenhouse": "job-boards.greenhouse.io",
-    "lever": "jobs.lever.co",
     "ashby": "jobs.ashbyhq.com",
     "gupy": "gupy.io",
     "inhire": "inhire.app",
@@ -39,11 +38,7 @@ class Identity:
             return f"https://{self.tenant}.{PROVIDERS[self.provider]}/" + (
                 "vagas" if self.provider == "inhire" else ""
             )
-        host = (
-            "jobs.eu.lever.co"
-            if self.provider == "lever" and self.region == "eu"
-            else PROVIDERS[self.provider]
-        )
+        host = PROVIDERS[self.provider]
         return f"https://{host}/{quote(self.tenant, safe='')}"
 
 
@@ -66,15 +61,6 @@ def identify(url):
             if len(parts) >= 3 and parts[:2] == ["v1", "boards"]
             else parse_qs(u.query).get("for", [""])[0]
             if parts[:1] == ["embed"]
-            else parts[0]
-            if parts
-            else ""
-        )
-    elif host in {"jobs.lever.co", "jobs.eu.lever.co", "api.lever.co", "api.eu.lever.co"}:
-        provider, region = "lever", "eu" if ".eu." in host else "global"
-        tenant = (
-            parts[2]
-            if len(parts) >= 3 and parts[:2] == ["v0", "postings"]
             else parts[0]
             if parts
             else ""
