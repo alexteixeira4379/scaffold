@@ -112,9 +112,9 @@ def collect(conn, metadata):
         rows = []
         for row in conn.execute(select(table)).mappings():
             aggregate = row.get("aggregate", "")
-            aggregate_match = any(aggregate == f"{prefix}:{i}" for prefix, parent in
-                                  [("job", "jobs"), ("application", "job_applications"),
-                                   ("match", "job_matches")] for i in targets[parent])
+            prefix, _, aggregate_id = aggregate.partition(":")
+            parent = {"job": "jobs", "application": "job_applications", "match": "job_matches"}.get(prefix)
+            aggregate_match = parent is not None and aggregate_id in targets[parent]
             if aggregate_match or linked_payload(row[field], targets):
                 rows.append(dict(row))
         if rows:
