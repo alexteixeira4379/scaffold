@@ -12,6 +12,7 @@ import datetime
 import decimal
 import gzip
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -142,6 +143,14 @@ def row_filter(table, rows):
     return or_(*(and_(*(column == row[column.name] for column in columns)) for row in rows))
 
 
+def file_digest(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("mode", choices=["plan", "backup", "pause", "purge"])
@@ -162,22 +171,32 @@ def main():
         report = {"mode": args.mode, "database": conn.exec_driver_sql("SELECT DATABASE()").scalar(),
                   "rows": counts, "controls": {name: len(rows) for name, rows in controls.items()}}
         if args.mode == "backup":
-            blob = gzip.compress(json.dumps({"schema_version": 1, "rows": selected, "controls": controls},
-                                           default=encode, separators=(",", ":")).encode())
             fd = os.open(args.backup, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
             with os.fdopen(fd, "wb") as file:
-                file.write(blob)
+                with gzip.GzipFile(fileobj=file, mode="wb") as compressed:
+                    writer = io.TextIOWrapper(compressed, encoding="utf-8")
+                    json.dump({"schema_version": 1, "rows": selected, "controls": controls},
+                              writer, default=encode, separators=(",", ":"))
+                    writer.flush()
+                    writer.detach()
                 file.flush()
                 os.fsync(file.fileno())
-            report.update(backup=args.backup, sha256=hashlib.sha256(blob).hexdigest(), bytes=len(blob))
+            manifest = {name: [key(metadata.tables[name], row) for row in rows]
+                        for name, rows in (selected | controls).items()}
+            manifest_path = args.backup + ".keys.json"
+            fd = os.open(manifest_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            with os.fdopen(fd, "w") as file:
+                json.dump(manifest, file, separators=(",", ":"))
+                file.flush()
+                os.fsync(file.fileno())
+            report.update(backup=args.backup, sha256=file_digest(args.backup),
+                          bytes=Path(args.backup).stat().st_size, manifest=manifest_path)
         elif args.mode in {"pause", "purge"}:
-            blob = Path(args.backup).read_bytes()
-            if not args.backup_sha256 or hashlib.sha256(blob).hexdigest() != args.backup_sha256:
+            if not args.backup_sha256 or file_digest(args.backup) != args.backup_sha256:
                 raise RuntimeError("Backup digest mismatch")
-            backup = json.loads(gzip.decompress(blob))
+            manifest = json.loads(Path(args.backup + ".keys.json").read_text())
             for name, rows in (selected | controls).items():
-                originals = backup["rows"].get(name, backup["controls"].get(name, []))
-                covered = {key(metadata.tables[name], row) for row in originals}
+                covered = {tuple(values) for values in manifest.get(name, [])}
                 if any(key(metadata.tables[name], row) not in covered for row in rows):
                     raise RuntimeError("New rows require a fresh backup: " + name)
             for name, rows in controls.items():
