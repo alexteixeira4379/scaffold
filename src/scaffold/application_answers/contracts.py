@@ -45,6 +45,8 @@ class Question:
     max_length: int | None = None
     min_value: float | None = None
     max_value: float | None = None
+    step_value: float | None = None
+    multiple_choice: bool = False
 
 
 @dataclass
@@ -103,3 +105,6 @@ class CandidateContext:
 
     resume_version_id: int | None = None
     resume_content: str | None = None
+
+    # Caller-owned approved application context; never persisted as candidate facts.
+    application_context: dict = field(default_factory=dict)

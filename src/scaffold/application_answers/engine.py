@@ -41,7 +41,7 @@ class AnswerEngine:
         session_factory: async_sessionmaker[AsyncSession],
         storage_client: StoragePort | None = None,
         ai_client: AIClient | None = None,
-        *, strict: bool = False, contextual: bool = False,
+        *, strict: bool = False, contextual: bool = False, application_policy: bool = False,
     ) -> None:
         """Initialize the AnswerEngine.
 
@@ -50,8 +50,9 @@ class AnswerEngine:
             storage_client: Optional StoragePort implementation for file downloads.
             ai_client: Optional scaffold AIClient. If None, AI fallback is disabled.
         """
-        self._strict = strict or contextual
-        self._contextual = contextual
+        self._application_policy = application_policy
+        self._strict = strict or contextual or application_policy
+        self._contextual = contextual or application_policy
         self._session_factory = session_factory
         self._storage_client = storage_client
         self._ai_client = ai_client
@@ -64,7 +65,7 @@ class AnswerEngine:
         """Access the loaded candidate context (None if load() not called)."""
         return self._context
 
-    async def load(self, candidate_id: int, *, resume_version_id: int | None = None) -> None:
+    async def load(self, candidate_id: int, *, resume_version_id: int | None = None, application_context: dict | None = None) -> None:
         """Load candidate data from the database.
 
         Must be called once before answer() or answer_batch().
@@ -76,9 +77,14 @@ class AnswerEngine:
             storage_client=self._storage_client,
             **({"resume_version_id": resume_version_id} if resume_version_id is not None else {}),
         )
+        if self._application_policy:
+            from copy import deepcopy
+            self._context.application_context = deepcopy(application_context or {})
+            if self._context.application_context.get('authorized_match') is not True:
+                raise ValueError('application_policy_requires_authorized_match')
         self._matcher = CommonMatcher(self._context, strict=self._strict, contextual=self._contextual)
         if self._ai_client is not None:
-            self._ai_responder = AIResponder(self._ai_client, strict=self._strict, contextual=self._contextual)
+            self._ai_responder = AIResponder(self._ai_client, strict=self._strict, contextual=self._contextual, application_policy=self._application_policy)
 
         logger.info(
             "answer_engine_loaded candidate_id=%d has_resume=%s has_ai=%s",
@@ -101,6 +107,8 @@ class AnswerEngine:
         if self._context is None or self._matcher is None:
             raise RuntimeError("AnswerEngine.load() must be called before answer()")
 
+        if self._application_policy:
+            return (await self.answer_batch([question]))[0]
         # 1. Try deterministic matcher
         result = self._matcher.match(question)
         if result is not None:
@@ -145,7 +153,11 @@ class AnswerEngine:
 
         # Phase 1: deterministic matching
         for i, question in enumerate(questions):
-            result = self._matcher.match(question)
+            if self._application_policy:
+                from scaffold.application_answers.application_policy import deterministic
+                result = deterministic(question, self._context)
+            else:
+                result = self._matcher.match(question)
             if result is not None:
                 answers.append(result)
             else:
@@ -160,7 +172,7 @@ class AnswerEngine:
                 for (idx, _), ai_answer in zip(unanswered, ai_answers):
                     answers[idx] = ai_answer
             except Exception as exc:
-                logger.warning("ai_batch_failed error=%s, using defaults", exc)
+                logger.warning("ai_batch_failed error_type=%s, using defaults", type(exc).__name__)
                 for idx, question in unanswered:
                     if answers[idx] is None:
                         answers[idx] = self._default_answer(question)
@@ -174,6 +186,9 @@ class AnswerEngine:
 
     def _default_answer(self, question: Question) -> Answer:
         """Safe default for unanswerable questions."""
+        if self._application_policy:
+            from scaffold.application_answers.application_policy import fallback
+            return fallback(question, self._context)
         if self._strict:
             return Answer(question.id, AnswerType.SKIP, "", 0.0, "unresolved")
         if question.options:

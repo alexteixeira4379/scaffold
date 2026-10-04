@@ -32,13 +32,17 @@ _AI_MAX_TOKENS_BATCH = 2000
 class AIResponder:
     """Fallback responder that uses an LLM to answer application questions."""
 
-    def __init__(self, ai_client: AIClient, *, strict: bool = False, contextual: bool = False) -> None:
+    def __init__(self, ai_client: AIClient, *, strict: bool = False, contextual: bool = False, application_policy: bool = False) -> None:
+        self._application_policy = application_policy
+        self._application_calls = 0
         self._strict = strict
         self._contextual = contextual
         self._ai = ai_client
 
     async def answer(self, question: Question, context: CandidateContext) -> Answer:
         """Answer a single question using AI."""
+        if self._application_policy:
+            return (await self._answer_application([question], context))[0]
         if self._contextual:
             return (await self._answer_contextual([question], context))[0]
         if self._strict:
@@ -63,6 +67,8 @@ class AIResponder:
         if not questions:
             return []
 
+        if self._application_policy:
+            return await self._answer_application(questions, context)
         if self._contextual:
             return await self._answer_contextual(questions, context)
 
@@ -106,6 +112,41 @@ class AIResponder:
                 answers.append(self._default_answer(question))
 
         return answers
+
+    async def _answer_application(self, questions, context):
+        from scaffold.application_answers.application_policy import POLICY, build_prompt, fallback, validate
+        from scaffold.application_answers.contextual import unresolved
+
+        answers = {}
+        pending = list(questions)
+        feedback = {}
+        # One bounded repair of invalid/new unanswered fields; no per-question fanout.
+        # Across dynamic steps the same responder permits at most four paid calls.
+        for attempt in range(2):
+            if not pending or self._application_calls >= 4:
+                break
+            self._application_calls += 1
+            try:
+                completion = await self._ai.basic(build_prompt(pending, context, feedback), ResponseMode.JSON,
+                                                  system=POLICY, temperature=0, max_tokens=6000)
+                payload = completion.as_json()
+                if not isinstance(payload, dict):
+                    raise ValueError('invalid_batch_shape')
+            except Exception as exc:
+                logger.warning('application_answers_call_failed error_type=%s attempt=%s', type(exc).__name__, attempt + 1)
+                payload = {}
+            retry = []
+            for question in pending:
+                answer = validate(question, payload.get(question.id), context)
+                if answer.type != AnswerType.SKIP:
+                    answers[question.id] = answer
+                else:
+                    retry.append(question)
+                    feedback[question.id] = answer.rejection_reason
+            pending = retry
+        for question in pending:
+            answers[question.id] = fallback(question, context)
+        return [answers.get(question.id, unresolved(question, 'answer_generation_unresolved')) for question in questions]
 
     async def _answer_contextual(self, questions, context):
         from scaffold.application_answers.contextual import POLICY, build_prompt, unresolved, validate
