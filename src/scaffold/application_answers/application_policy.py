@@ -287,19 +287,14 @@ def adapt_to_constraints(question, value, context, basis=None):
 
 def protected_fallback(question):
     labels = DECLINE_LABELS | {'nao informado', 'not provided', 'unknown', 'nao se aplica', 'not applicable'}
+    if work_permission_request(question):
+        labels |= {'not confirmed', 'unconfirmed', 'nao confirmado', 'nao confirmada'}
     # Legal attestation/consent may not be silently negated. Only an explicit
     # non-disclosure/unknown choice is accepted; no yes/no or first-option default.
     options = [o for o in question.options or [] if normalized(o.label) in labels]
     if len(options) == 1:
         value = json.dumps([options[0].value]) if question.multiple_choice else options[0].value
         return Answer(question.id, AnswerType.OPTION, value, 1, 'non_disclosure')
-    if question.is_required and work_permission_request(question) and not question.multiple_choice:
-        # Submission policy may decline to affirm an unverified work permission.
-        # This is not evidence that the candidate lacks it and never updates facts.
-        negative = [o for o in question.options or [] if normalized(o.label) in {'no', 'nao'}]
-        if len(negative) == 1:
-            return Answer(question.id, AnswerType.OPTION, negative[0].value, .25,
-                          'work_authorization_not_confirmed', ['application_context'])
     if (not question.options and question.field_type in {'text', 'textarea', 'short_text', 'long_text'}
             and not re.search(r'\b(cpf|cnpj|rg|passport|ssn|cnh)\b', normalized(question.question))):
         value, reason = checked_value(question, 'Não informado')
