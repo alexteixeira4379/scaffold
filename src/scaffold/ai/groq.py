@@ -386,6 +386,7 @@ class GroqLLM:
         reasoning_effort: str | None = None,
         schema_transport: str = "json_schema",
         schema_name: str = "output",
+        strict: bool = False,
     ) -> StructuredResult:
         """One closed-schema completion. No tools, no loop, no parsing.
 
@@ -394,6 +395,8 @@ class GroqLLM:
         """
         if schema_transport not in {"json_schema", "json_object"}:
             raise AIProviderError("unsupported schema transport")
+        if strict and schema_transport != "json_schema":
+            raise AIProviderError("strict structured output requires json_schema transport")
         body: dict[str, Any] = {
             "model": model,
             "messages": [{"role": m.role, "content": m.content} for m in messages],
@@ -409,6 +412,8 @@ class GroqLLM:
             }
         else:
             body["response_format"] = {"type": "json_object"}
+        if strict:
+            body["response_format"]["json_schema"]["strict"] = True
         headers = {"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"}
         async with httpx.AsyncClient(timeout=self._timeout_s) as client:
             response = await client.post(

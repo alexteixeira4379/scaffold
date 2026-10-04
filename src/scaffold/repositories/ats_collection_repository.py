@@ -1,7 +1,7 @@
 """Short transactions for ATS collection; token and expiry fence every write."""
 from datetime import timedelta
 from uuid import uuid4
-from sqlalchemy import select, update, or_, func
+from sqlalchemy import select, update, or_
 from scaffold.models.ats.ats_discovery_sources import AtsDiscoverySource as Source
 from scaffold.models.ats.ats_providers import AtsProvider as Provider
 from scaffold.models.ats.ats_provider_schedules import AtsProviderSchedule as Schedule
@@ -112,15 +112,16 @@ class AtsCollectionRepository:
 
     async def reserve_experiment(self, session, *, source_id, token, now,
                                  provider_code, experiment_id, candidate_id, job_url):
-        """One lifetime reservation/provider, serialized across channels and cycles.
+        """One lifetime reservation/provider plus an explicit final-slot grant.
 
-        Ambiguous publication consumes the slot. Only an audited manual
-        reconciliation can release it; changing env/config never resets budget.
+        Ambiguous publication consumes the slot. An explicit grant allocates the third global slot; historical reservations
+        remain immutable and changing env/config never resets the budget.
         """
         if provider_code not in {"inhire", "teamtailor", "quickin"} or not experiment_id or candidate_id <= 0:
             raise ValueError("invalid_experiment_reservation")
-        provider_id = await session.scalar(select(Provider.id).where(
-            Provider.code == provider_code).with_for_update())
+        from scaffold.repositories.ats_experiment_budget import locked_budget, proof
+        codes, reservations, grants = await locked_budget(session)
+        provider_id = next((id for id, code in codes.items() if code == provider_code), None)
         if provider_id is None:
             raise ValueError("missing_experiment_provider")
         source = await session.scalar(select(Source).where(
@@ -129,17 +130,27 @@ class AtsCollectionRepository:
             Source.collection_lease_until > now).with_for_update())
         if source is None:
             raise LeaseLostError("ATS experiment lease lost")
-        used = await session.scalar(select(Source.id).where(
-            Source.ats_provider_id == provider_id,
-            Source.discovery_metadata["bounded_experiment"]["reserved"].as_boolean().is_(True)
-        ).limit(1))
-        if used is not None:
+        # Existing reservations stay terminal even if configuration changes.
+        if job_url in reservations:
             return False
+        grant = grants.get(job_url)
+        if grant:
+            if (grant['consumed'] or grant['source_id'] != source_id
+                    or grant['candidate_id'] != candidate_id or grant['id'] != experiment_id):
+                return False
+        elif (len(set(reservations) | set(grants)) >= 3
+              or any(r['provider_code'] == provider_code for r in reservations.values())):
+            return False
+        proof({'id':experiment_id, 'candidate_id':candidate_id, 'url':job_url}, provider_code, source.base_url)
         metadata = dict(source.discovery_metadata or {})
         metadata["bounded_experiment"] = {
             "id": experiment_id, "candidate_id": candidate_id, "url": job_url,
             "reserved": True, "reserved_at": now.isoformat(),
         }
+        if grant:
+            metadata['bounded_experiment_grant'] = {
+                **metadata['bounded_experiment_grant'], 'consumed':True, 'consumed_at':now.isoformat(),
+            }
         source.discovery_metadata = metadata
         await session.flush()
         return True
