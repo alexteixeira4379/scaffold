@@ -17,9 +17,10 @@ from scaffold.ai.contracts import (
     StructuredResult,
 )
 from scaffold.ai.formatters import parse_json_content, prepare_messages
+from scaffold.ai.schema_shape_diagnostics import generation_shape
 
 
-def structured_error_metadata(response):
+def structured_error_metadata(response, schema=None):
     """Technical diagnostics only; provider messages may echo private prompts."""
     result = {"http_status": response.status_code, "response_bytes": len(response.content),
               "response_hash": hashlib.sha256(response.content).hexdigest()}
@@ -57,6 +58,8 @@ def structured_error_metadata(response):
     generation = error.get("failed_generation")
     result["failed_generation_present"] = generation is not None
     result["failed_generation_chars"] = len(generation) if isinstance(generation, str) else 0
+    if generation is not None and schema is not None:
+        result["generation_shape"] = generation_shape(generation, schema)
     message = message.casefold() if isinstance(message, str) else ""
     # These are fixed vocabulary labels, never terms extracted from private text.
     terms = roots | schema_parts | {"context_length", "json_validate_failed", "content_policy",
@@ -493,7 +496,7 @@ class GroqLLM:
             )
         if response.status_code >= 400:
             raise AIProviderError(f"groq http {response.status_code}",
-                                  provider_error=structured_error_metadata(response))
+                                  provider_error=structured_error_metadata(response, schema))
         try:
             payload = response.json()
         except ValueError as exc:

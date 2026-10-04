@@ -65,6 +65,7 @@ async def test_structured_http_error_preserves_safe_diagnostic_without_private_b
     assert diagnostic['param'] == 'response_format.<redacted>'
     assert diagnostic['failed_generation_chars'] > 500
     assert diagnostic['message_chars'] > 0
+    assert diagnostic['generation_shape']['json_parsed'] is False
     assert len(diagnostic['response_hash']) == 64
     assert 'private' not in json.dumps(diagnostic).lower()
     assert caught.value.usage is None
