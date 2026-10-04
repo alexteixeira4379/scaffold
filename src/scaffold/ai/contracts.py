@@ -44,11 +44,12 @@ class CompletionResult(BaseModel):
 
 
 class AIProviderError(RuntimeError):
-    def __init__(self, message, *, usage=None):
+    def __init__(self, message, *, usage=None, provider_error=None):
         # Usage the provider reported before generation failed to parse. Optional:
         # a transport-level failure (HTTP error, no response body) has none.
         super().__init__(message)
         self.usage = usage
+        self.provider_error = provider_error
 
 
 class StructuredResult(BaseModel):

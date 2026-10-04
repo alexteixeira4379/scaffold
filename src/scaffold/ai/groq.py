@@ -1,5 +1,7 @@
+import hashlib
 import json
 import os
+import re
 import uuid
 from collections.abc import Mapping, Sequence
 from typing import Any
@@ -15,6 +17,76 @@ from scaffold.ai.contracts import (
     StructuredResult,
 )
 from scaffold.ai.formatters import parse_json_content, prepare_messages
+
+
+def structured_error_metadata(response):
+    """Technical diagnostics only; provider messages may echo private prompts."""
+    result = {"http_status": response.status_code, "response_bytes": len(response.content),
+              "response_hash": hashlib.sha256(response.content).hexdigest()}
+    try:
+        payload = response.json()
+        error = payload.get("error") if isinstance(payload, dict) else None
+    except ValueError:
+        error = None
+    if not isinstance(error, dict):
+        return {**result, "message": "provider_message_redacted"}
+    known_codes = {"json_validate_failed", "json_validation_failed", "tool_use_failed",
+                   "invalid_json_schema", "invalid_request_error", "context_length_exceeded",
+                   "rate_limit_exceeded", "model_not_found", "unsupported_value",
+                   "invalid_value", "unsupported_parameter", "invalid_api_key"}
+    known_types = {"invalid_request_error", "authentication_error", "permission_error",
+                   "rate_limit_error", "server_error", "api_error", "tokens"}
+    for key, allowed in (("code", known_codes), ("type", known_types)):
+        value = error.get(key)
+        result[key] = value if isinstance(value, str) and value in allowed else "unknown"
+    param = error.get("param")
+    roots = {
+        "model", "messages", "response_format", "max_tokens", "max_completion_tokens",
+        "temperature", "reasoning_effort", "reasoning_format", "include_reasoning",
+        "stream", "tools", "tool_choice",
+    }
+    schema_parts = {"json_schema", "schema", "properties", "items", "type", "name", "strict",
+                    "required", "additionalProperties", "maxItems", "minItems", "enum",
+                    "minimum", "maximum", "minLength", "maxLength", "score", "verdict",
+                    "candidate_evidence_ids", "job_evidence_ids", "gaps", "rationale"}
+    parts = param.split(".") if isinstance(param, str) and len(param) <= 500 else []
+    result["param"] = (".".join(part if part in roots | schema_parts else "<redacted>"
+                                for part in parts[:12]) if parts and parts[0] in roots else "redacted")
+    message = error.get("message")
+    result["message_chars"] = len(message) if isinstance(message, str) else 0
+    generation = error.get("failed_generation")
+    result["failed_generation_present"] = generation is not None
+    result["failed_generation_chars"] = len(generation) if isinstance(generation, str) else 0
+    message = message.casefold() if isinstance(message, str) else ""
+    # These are fixed vocabulary labels, never terms extracted from private text.
+    terms = roots | schema_parts | {"context_length", "json_validate_failed", "content_policy",
+                                    "safety", "maximum context length", "output tokens"}
+    result["technical_terms"] = sorted(term for term in terms
+                                       if re.search(r'(?<!\w)' + re.escape(term.casefold()) + r'(?!\w)', message))
+    # Classify known technical conditions without retaining any supplied text.
+    labels = (
+        ("failed to generate json", "json_generation_failed"),
+        ("failed to call a function", "tool_generation_failed"),
+        ("invalid json schema", "invalid_json_schema"),
+        ("invalid schema", "invalid_json_schema"),
+        ("schema validation", "schema_validation_failed"),
+        ("context length", "context_limit"),
+        ("context_length", "context_limit"),
+        ("reasoning_effort", "reasoning_parameter_error"),
+        ("reasoning_format", "reasoning_parameter_error"),
+        ("max_tokens", "token_parameter_error"),
+        ("max_completion_tokens", "token_parameter_error"),
+        ("rate limit", "rate_limited"),
+        ("content policy", "safety_rejection"),
+        ("content_policy", "safety_rejection"),
+        ("safety", "safety_rejection"),
+        ("model does not exist", "model_unavailable"),
+        ("model not found", "model_unavailable"),
+        ("not supported", "unsupported_request_value"),
+    )
+    result["message"] = next((label for needle, label in labels if needle in message),
+                             "provider_message_redacted")
+    return result
 
 
 def strict_forced_schema(schema):
@@ -420,7 +492,8 @@ class GroqLLM:
                 f"{self._base_url}/chat/completions", headers=headers, json=body
             )
         if response.status_code >= 400:
-            raise AIProviderError(f"groq http {response.status_code}: {response.text[:500]}")
+            raise AIProviderError(f"groq http {response.status_code}",
+                                  provider_error=structured_error_metadata(response))
         try:
             payload = response.json()
         except ValueError as exc:
