@@ -11,6 +11,8 @@ PROVIDERS = {
     "ashby": "jobs.ashbyhq.com",
     "gupy": "gupy.io",
     "inhire": "inhire.app",
+    "teamtailor": "teamtailor.com",
+    "quickin": "jobs.quickin.io",
     "recruitee": "recruitee.com",
     "smartrecruiters": "careers.smartrecruiters.com",
 }
@@ -34,7 +36,7 @@ class Identity:
 
     @property
     def url(self):
-        if self.provider in {"gupy", "inhire", "recruitee"}:
+        if self.provider in {"gupy", "inhire", "recruitee", "teamtailor"}:
             return f"https://{self.tenant}.{PROVIDERS[self.provider]}/" + (
                 "vagas" if self.provider == "inhire" else ""
             )
@@ -71,18 +73,20 @@ def identify(url):
         provider, tenant = "ashby", parts[2]
     elif host == "api.smartrecruiters.com" and parts[:2] == ["v1", "companies"] and len(parts) >= 3:
         provider, tenant = "smartrecruiters", parts[2]
+    elif host == "jobs.quickin.io":
+        provider, tenant = "quickin", parts[0] if parts else ""
     elif host == "jobs.ashbyhq.com":
         provider, tenant = "ashby", parts[0] if parts else ""
     elif host in {"careers.smartrecruiters.com", "jobs.smartrecruiters.com"}:
         provider, tenant = "smartrecruiters", parts[0] if parts else ""
     else:
-        for code in ("gupy", "inhire", "recruitee"):
+        for code in ("gupy", "inhire", "recruitee", "teamtailor"):
             suffix = "." + PROVIDERS[code]
             if host.endswith(suffix) and "." not in host[: -len(suffix)]:
                 provider, tenant = code, host[: -len(suffix)]
     if not provider:
         return None
-    if provider in {"gupy", "inhire", "recruitee"} and not re.fullmatch(
+    if provider in {"gupy", "inhire", "recruitee", "teamtailor"} and not re.fullmatch(
         r"[a-z0-9][a-z0-9-]{0,62}", tenant
     ):
         raise ValueError("invalid_tenant")

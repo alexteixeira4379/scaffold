@@ -13,7 +13,7 @@ class LeaseLostError(RuntimeError):
 
 
 class AtsCollectionRepository:
-    async def claim(self, session, *, provider_codes, now, lease_seconds, exclude_ids=()):
+    async def claim(self, session, *, provider_codes, now, lease_seconds, exclude_ids=(), source_identity_hashes=None):
         eligibility = (
             Source.active.is_(True),
             Source.qualification_status == "qualified",
@@ -27,6 +27,9 @@ class AtsCollectionRepository:
                 .join(Provider, Provider.id == Source.ats_provider_id)
                 .where(*eligibility, Provider.active.is_(True), Provider.code.in_(provider_codes))
                 .order_by(Source.last_attempt_at.asc(), Source.id.asc()).limit(100))
+        if source_identity_hashes:
+            stmt = stmt.where(or_(Provider.code.not_in(tuple(source_identity_hashes)),
+                                  Source.canonical_identity_hash.in_(tuple(source_identity_hashes.values()))))
         if exclude_ids:
             stmt = stmt.where(Source.id.not_in(exclude_ids))
         candidates = (await session.execute(stmt)).all()
@@ -106,6 +109,40 @@ class AtsCollectionRepository:
         if status in ("completed", "restarted", "blocked"):
             updates["finished_at"] = now
         await session.execute(update(Run).where(Run.id == cycle_id).values(**updates))
+
+    async def reserve_experiment(self, session, *, source_id, token, now,
+                                 provider_code, experiment_id, candidate_id, job_url):
+        """One lifetime reservation/provider, serialized across channels and cycles.
+
+        Ambiguous publication consumes the slot. Only an audited manual
+        reconciliation can release it; changing env/config never resets budget.
+        """
+        if provider_code not in {"inhire", "teamtailor", "quickin"} or not experiment_id or candidate_id <= 0:
+            raise ValueError("invalid_experiment_reservation")
+        provider_id = await session.scalar(select(Provider.id).where(
+            Provider.code == provider_code).with_for_update())
+        if provider_id is None:
+            raise ValueError("missing_experiment_provider")
+        source = await session.scalar(select(Source).where(
+            Source.id == source_id, Source.ats_provider_id == provider_id,
+            Source.collection_lease_token == token,
+            Source.collection_lease_until > now).with_for_update())
+        if source is None:
+            raise LeaseLostError("ATS experiment lease lost")
+        used = await session.scalar(select(Source.id).where(
+            Source.ats_provider_id == provider_id,
+            Source.discovery_metadata["bounded_experiment"]["reserved"].as_boolean().is_(True)
+        ).limit(1))
+        if used is not None:
+            return False
+        metadata = dict(source.discovery_metadata or {})
+        metadata["bounded_experiment"] = {
+            "id": experiment_id, "candidate_id": candidate_id, "url": job_url,
+            "reserved": True, "reserved_at": now.isoformat(),
+        }
+        source.discovery_metadata = metadata
+        await session.flush()
+        return True
 
     async def interval(self, session, *, provider_id):
         value = (await session.execute(select(Schedule.interval_seconds).where(
