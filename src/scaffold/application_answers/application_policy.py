@@ -189,7 +189,7 @@ def deterministic(question, context):
     if explicit is not None:
         value, reason = checked_value(question, str(explicit))
         if reason:
-            return contextual.unresolved(question, 'explicit_' + reason)
+            return adapt_to_constraints(question, str(explicit), context, ['explicit_answers'])
         return Answer(question.id, AnswerType.OPTION if question.options else AnswerType.TEXT,
                       value, 1, 'explicit_application_answer', ['explicit_answers'])
     label = normalized(question.question)
@@ -214,8 +214,49 @@ def deterministic(question, context):
     answer = CommonMatcher(context, contextual=True, strict=True).match(question)
     if answer is not None and answer.type != AnswerType.SKIP:
         value, reason = checked_value(question, answer.value)
-        return replace(answer, value=value) if not reason else None
+        if not reason:
+            return replace(answer, value=value)
+        # Professional application answers may be adapted to native constraints
+        # under the caller's explicit policy; keep the source factual distinction.
+        return adapt_to_constraints(question, answer.value, context, answer.basis)
     return None
+
+
+def adapt_to_constraints(question, value, context, basis=None):
+    """Adapt professional answers only, retaining the original context and provenance."""
+    if not authorized(context) or protected(question):
+        return contextual.unresolved(question, 'explicit_answer_constraint_conflict')
+    references = list(dict.fromkeys([*(basis or []), 'application_context']))
+    if question.field_type in {'number', 'numeric', 'range'} and not question.options:
+        try:
+            number = Decimal(value)
+            if not number.is_finite():
+                raise InvalidOperation
+            lower = Decimal(str(question.min_value)) if question.min_value is not None else Decimal(0)
+            upper = Decimal(str(question.max_value)) if question.max_value is not None else None
+            step = Decimal(str(question.step_value)) if question.step_value else None
+            number = max(number, lower)
+            if step:
+                number = lower + ((number - lower) / step).to_integral_value(rounding=ROUND_CEILING) * step
+            if upper is not None:
+                if step:
+                    upper = lower + ((upper - lower) / step).to_integral_value(rounding=ROUND_FLOOR) * step
+                number = min(number, upper)
+            adjusted, reason = checked_value(question, format(number, 'f'))
+            if not reason:
+                if re.search(r'salar|remunera|compensation', normalized(question.question)) and context.min_salary is not None:
+                    references.append('min_salary')
+                return Answer(question.id, AnswerType.TEXT, adjusted, .5,
+                              'authorized_constraint_adjustment', list(dict.fromkeys(references)))
+        except (InvalidOperation, TypeError, ValueError):
+            pass
+    # Do not silently invert a supplied choice/intent; options with a representable
+    # label/value have already been accepted by checked_value.
+    if question.options and intent_question(question):
+        return contextual.unresolved(question, 'explicit_option_not_representable')
+    adjusted = fallback(question, context)
+    return replace(adjusted, source='authorized_constraint_adjustment',
+                   basis=list(dict.fromkeys([*references, *adjusted.basis])))
 
 
 def protected_fallback(question):
