@@ -75,13 +75,19 @@ def authorized(context):
     return context.application_context.get('authorized_match') is True
 
 
+def work_permission_request(question):
+    text = normalized(question.question)
+    return (bool(re.match(r'are you (?:legally )?authori[sz]ed to work\b', text))
+            and not re.search(r'\b(not|without|and|sponsor|sponsorship|require)\b', text))
+
+
 def protected(question):
     text = normalized(question.question)
     if question.field_type in {'consent', 'file', 'file_resume', 'file_cover_letter', 'email', 'tel', 'phone'}:
         return True
     identifiers = r'\b(cpf|cnpj|rg|passport|passaporte|ssn|cnh|crea|crm|oab|nit|pis)\b|social security|driver.?s? licen|numero.*documento'
     personal = r'data de nascimento|birth.?date|date of birth|\bdob\b|\braca\b|\brace\b|etni|genero|gender|sexo|sexual|deficien|disab|\bpcd\b|\bcid\b|\bicd\b|medical|saude|health|religia|veteran'
-    legal = r'work authori|autorizacao.*trabalh|direito.*trabalh|legal.*work|citizenship|cidadania|nacionalidade|criminal|antecedente|certificac|certification|licenca profissional|professional licen'
+    legal = r'authori[sz]ed.*work|work permit|work authori|autorizacao.*trabalh|direito.*trabalh|legal.*work|citizenship|cidadania|nacionalidade|criminal|antecedente|certificac|certification|licenca profissional|professional licen'
     contact = r'^nome(?: completo)?$|^name$|^full name$|^sobrenome$|^surname$|^e mail$|^email$|^telefone$|^phone$'
     return bool(re.search(identifiers + '|' + personal + '|' + legal + '|' + contact, text))
 
@@ -214,6 +220,14 @@ def deterministic(question, context):
                 return Answer(question.id, AnswerType.TEXT, value, 1, 'database', ['cpf'])
         return protected_fallback(question)
     if protected(question):
+        if work_permission_request(question) and context.work_authorization:
+            options = [o for o in question.options or []
+                       if normalized(o.label) == normalized(context.work_authorization)
+                       or o.value == context.work_authorization]
+            if len(options) == 1:
+                return Answer(question.id, AnswerType.OPTION, options[0].value, 1,
+                              'database', ['work_authorization'])
+            return contextual.unresolved(question, 'explicit_work_authorization_not_representable')
         from scaffold.application_answers.matcher import CommonMatcher
         answer = CommonMatcher(context, contextual=True, strict=True).match(question)
         if answer is not None and answer.type != AnswerType.SKIP:
@@ -279,6 +293,13 @@ def protected_fallback(question):
     if len(options) == 1:
         value = json.dumps([options[0].value]) if question.multiple_choice else options[0].value
         return Answer(question.id, AnswerType.OPTION, value, 1, 'non_disclosure')
+    if question.is_required and work_permission_request(question) and not question.multiple_choice:
+        # Submission policy may decline to affirm an unverified work permission.
+        # This is not evidence that the candidate lacks it and never updates facts.
+        negative = [o for o in question.options or [] if normalized(o.label) in {'no', 'nao'}]
+        if len(negative) == 1:
+            return Answer(question.id, AnswerType.OPTION, negative[0].value, .25,
+                          'work_authorization_not_confirmed', ['application_context'])
     if (not question.options and question.field_type in {'text', 'textarea', 'short_text', 'long_text'}
             and not re.search(r'\b(cpf|cnpj|rg|passport|ssn|cnh)\b', normalized(question.question))):
         value, reason = checked_value(question, 'Não informado')
