@@ -167,6 +167,18 @@ def validate(question, record, context):
     if protected(question):
         # Protected fields are resolved locally from exact facts/non-disclosure.
         return contextual.unresolved(question, 'protected_fact_requires_explicit_source')
+    if intent_question(question):
+        # Search filters are not a historical/personal declaration of willingness.
+        # Once generated for this authorized application, this is application intent.
+        kind = 'intent'
+        references = list(dict.fromkeys([*references, 'application_context']))
+    label = normalized(question.question)
+    historical_compensation = (
+        re.search(r'salar|remunera|compensat|\bprr\b|\bppr\b|bonus|ganhava|ganhou|recebia', label)
+        and re.search(r'anterior|ultim|previous|\blast\b|recebid|ganhava|ganhou|recebia|histor|passad|\bpast\b|atual|current', label))
+    if historical_compensation and 'min_salary' in references:
+        # A desired minimum can anchor an authorized estimate, never prove earned pay.
+        kind = 'estimated'
     if kind == 'intent' and (not intent_question(question) or 'application_context' not in references):
         return contextual.unresolved(question, 'invalid_intent_basis')
     if kind in {'direct', 'derived', 'inferred'} and references and set(references) == {'application_context'}:
