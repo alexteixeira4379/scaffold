@@ -38,6 +38,23 @@ class CacheClient:
     async def delete(self, key: str) -> bool:
         return await self._backend.delete(key)
 
+    async def delete_if_value(self, key: str, expected: str) -> bool:
+        """Atomically remove a value only if it still matches the observed version."""
+        return await self._backend.delete_if_value(key, expected)
+
+    async def acquire_pool_slot(self, key: str, owner: str, limit: int, ttl_s: int) -> bool:
+        if limit <= 0 or ttl_s <= 0:
+            raise ValueError("pool limit and ttl must be positive")
+        return await self._backend.acquire_pool_slot(key, owner, limit, ttl_s)
+
+    async def renew_pool_slot(self, key: str, owner: str, ttl_s: int) -> bool:
+        if ttl_s <= 0:
+            raise ValueError("pool ttl must be positive")
+        return await self._backend.renew_pool_slot(key, owner, ttl_s)
+
+    async def release_pool_slot(self, key: str, owner: str) -> bool:
+        return await self._backend.release_pool_slot(key, owner)
+
     async def exists(self, key: str) -> bool:
         return await self._backend.exists(key)
 

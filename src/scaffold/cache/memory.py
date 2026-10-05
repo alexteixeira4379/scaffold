@@ -9,6 +9,7 @@ from scaffold.cache.ports import JsonValue
 class InMemoryCache:
     def __init__(self) -> None:
         self._values: dict[str, tuple[str, float | None]] = {}
+        self._pools: dict[str, dict[str, float]] = {}
         self._connected = False
 
     async def connect(self) -> None:
@@ -46,6 +47,33 @@ class InMemoryCache:
         existed = self._get_record(key) is not None
         self._values.pop(key, None)
         return existed
+
+    async def delete_if_value(self, key: str, expected: str) -> bool:
+        record = self._get_record(key)
+        if record is None or record[0] != expected:
+            return False
+        self._values.pop(key, None)
+        return True
+
+    async def acquire_pool_slot(self, key: str, owner: str, limit: int, ttl_s: int) -> bool:
+        now = monotonic()
+        pool = {name: expiry for name, expiry in self._pools.get(key, {}).items() if expiry > now}
+        self._pools[key] = pool
+        if owner in pool or len(pool) >= limit:
+            return False
+        pool[owner] = now + ttl_s
+        return True
+
+    async def renew_pool_slot(self, key: str, owner: str, ttl_s: int) -> bool:
+        now = monotonic()
+        pool = self._pools.get(key, {})
+        if pool.get(owner, 0) <= now:
+            return False
+        pool[owner] = now + ttl_s
+        return True
+
+    async def release_pool_slot(self, key: str, owner: str) -> bool:
+        return self._pools.get(key, {}).pop(owner, None) is not None
 
     async def exists(self, key: str) -> bool:
         return self._get_record(key) is not None

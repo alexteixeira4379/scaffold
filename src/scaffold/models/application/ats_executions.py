@@ -1,8 +1,10 @@
 """Durable ATS send fence. Candidate/job uniqueness survives duplicate application IDs."""
 
 from datetime import datetime
-from sqlalchemy import BigInteger, Integer, String, DateTime, JSON, UniqueConstraint, Index
+
+from sqlalchemy import JSON, BigInteger, DateTime, Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
+
 from scaffold.base import CoreBase
 
 
@@ -18,6 +20,10 @@ class AtsExecution(CoreBase):
     run_id: Mapped[int] = mapped_column(BigInteger)
     resume_version_id: Mapped[int] = mapped_column(BigInteger)
     provider: Mapped[str] = mapped_column(String(32))
+    executor: Mapped[str] = mapped_column(String(32), default="ats", server_default="ats")
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    fence_version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    policy_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
     state: Mapped[str] = mapped_column(String(32), default="reserved")
     owner: Mapped[str] = mapped_column(String(36))
     lease_until: Mapped[datetime] = mapped_column(DateTime)

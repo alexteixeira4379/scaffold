@@ -50,6 +50,38 @@ class RedisCache:
         deleted = await self._redis.delete(key)
         return deleted > 0
 
+    async def delete_if_value(self, key: str, expected: str) -> bool:
+        script = "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) else return 0 end"
+        return bool(await self._redis.eval(script, 1, key, expected))
+
+    async def acquire_pool_slot(self, key: str, owner: str, limit: int, ttl_s: int) -> bool:
+        script = """
+        local now = redis.call('TIME')
+        local seconds = tonumber(now[1]) + tonumber(now[2]) / 1000000
+        redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', seconds)
+        if redis.call('ZSCORE', KEYS[1], ARGV[1]) then return 0 end
+        if redis.call('ZCARD', KEYS[1]) >= tonumber(ARGV[2]) then return 0 end
+        redis.call('ZADD', KEYS[1], seconds + tonumber(ARGV[3]), ARGV[1])
+        redis.call('EXPIRE', KEYS[1], tonumber(ARGV[3]) * 2)
+        return 1
+        """
+        return bool(await self._redis.eval(script, 1, key, owner, limit, ttl_s))
+
+    async def renew_pool_slot(self, key: str, owner: str, ttl_s: int) -> bool:
+        script = """
+        local now = redis.call('TIME')
+        local seconds = tonumber(now[1]) + tonumber(now[2]) / 1000000
+        local expiry = redis.call('ZSCORE', KEYS[1], ARGV[1])
+        if not expiry or tonumber(expiry) <= seconds then return 0 end
+        redis.call('ZADD', KEYS[1], seconds + tonumber(ARGV[2]), ARGV[1])
+        redis.call('EXPIRE', KEYS[1], tonumber(ARGV[2]) * 2)
+        return 1
+        """
+        return bool(await self._redis.eval(script, 1, key, owner, ttl_s))
+
+    async def release_pool_slot(self, key: str, owner: str) -> bool:
+        return bool(await self._redis.zrem(key, owner))
+
     async def exists(self, key: str) -> bool:
         found = await self._redis.exists(key)
         return found > 0

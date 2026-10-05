@@ -61,7 +61,7 @@ async def seed(db):
         )
 
 
-async def test_no_keywords_match_waits_for_resume_then_dispatches_once_even_after_cancellation(
+async def test_no_keywords_match_waits_for_resume_and_preserves_authorized_dispatch(
     db, load_service
 ):
     await seed(db)
@@ -124,29 +124,13 @@ async def test_no_keywords_match_waits_for_resume_then_dispatches_once_even_afte
         await lifecycle.handle_subscription(
             session, {"candidate_id": 1, "aggregate_version": 100, "data": {"access_active": False}}
         )
-    application = load_service("application-worker", "src.handlers.matched_handler")
-    deps = application.MatchedHandlerDeps(
-        db,
-        SimpleNamespace(queue_name="application.linkedin.submit"),
-        SimpleNamespace(queue_name="application.ats.submit"),
-        SimpleNamespace(queue_name="tracking.event"),
-        None,
-    )
-    message = SimpleNamespace(body=payload, delete=AsyncMock(), release=AsyncMock())
-    await application.handle_matched(deps, message)
-    await application.handle_matched(deps, message)
     async with db() as session:
-        assert len((await session.scalars(select(JobApplication))).all()) == 1
-        commands = (
-            await session.scalars(
-                select(DomainOutbox).where(
-                    DomainOutbox.destination == "application.linkedin.submit"
-                )
-            )
-        ).all()
+        commands = (await session.scalars(select(DomainOutbox).where(
+            DomainOutbox.destination == "job.matched"))).all()
         assert len(commands) == 1
-        assert commands[0].payload["resume_url"] == "resumes/1.pdf"
-    message.release.assert_not_called()
+        assert commands[0].payload == payload
+        assert commands[0].payload["authorization"]["resume_version_id"] == 1
+        assert not (await session.scalars(select(JobApplication))).all()
 
 
 async def test_global_coverage_is_shared_by_candidates(db, load_service):
