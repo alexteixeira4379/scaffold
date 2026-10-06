@@ -224,3 +224,12 @@ Os testes cobrem sobretudo os backends em memória de mensageria e IA, de forma 
 ## Licença e governança
 
 Defina a licença e o processo de contribuição conforme a política da organização Jobito; este repositório serve como base técnica comum aos serviços que o consomem.
+
+## Motor de respostas de candidatura
+
+O motor e sua cobertura de testes pertencem ao `jobito-application-kit`, em
+`jobito_application.answer_engine` e `jobito_application.answers`. O módulo
+`scaffold.application_answers` foi removido do código-fonte após a migração dos
+workers ATS e LinkedIn. Consumidores devem importar os contratos e o motor do
+Application Kit; o scaffold não depende dessa lib. Wheels de versões anteriores
+continuam representando seus releases originais.
