@@ -247,6 +247,7 @@ async def test_webhook_and_outbox_roll_back_together_and_dedupe():
 
 def test_mysql_identifier_names_stay_within_64_characters():
     import re
+
     for model in MODELS:
         ddl = str(CreateTable(model.__table__).compile(dialect=mysql.dialect()))
         for name in re.findall(r"CONSTRAINT\s+`?([a-zA-Z0-9_]+)`?", ddl):
@@ -254,7 +255,11 @@ def test_mysql_identifier_names_stay_within_64_characters():
         for index in model.__table__.indexes:
             assert len(index.name) <= 64
     output = io.StringIO()
-    with Operations.context(MigrationContext.configure(dialect_name="mysql", opts={"as_sql": True, "output_buffer": output})):
+    with Operations.context(
+        MigrationContext.configure(
+            dialect_name="mysql", opts={"as_sql": True, "output_buffer": output}
+        )
+    ):
         migration().upgrade()
     for name in re.findall(r"(?:CONSTRAINT|INDEX)\s+`?([a-zA-Z0-9_]+)`?", output.getvalue()):
         assert len(name) <= 64, name
@@ -262,6 +267,7 @@ def test_mysql_identifier_names_stay_within_64_characters():
 
 def test_private_object_migration_preserves_cleanup_references_after_deletion():
     from scaffold.models.email import EmailPrivateObject
+
     path = MIGRATION_PATH.with_name("0054_email_private_objects.py")
     spec = importlib.util.spec_from_file_location("candidate_email_0054", path)
     module = importlib.util.module_from_spec(spec)
@@ -273,19 +279,108 @@ def test_private_object_migration_preserves_cleanup_references_after_deletion():
         columns = inspect(conn).get_columns("email_private_objects")
         assert {c["name"] for c in columns} == set(EmailPrivateObject.__table__.columns.keys())
         conn.execute(text("INSERT INTO candidates VALUES (1)"))
-        conn.execute(text("INSERT INTO email_messages (id,resend_account_id,provider_email_id,sender,subject,received_at,authentication,headers) VALUES (1,'one','mail1','sender@example.org','Hi',CURRENT_TIMESTAMP,'{}','{}')"))
-        conn.execute(text("INSERT INTO email_private_objects (key,bucket,message_id,candidate_id,scope) VALUES ('forwarding/1/payload.json','private',1,1,'candidate')"))
+        conn.execute(
+            text(
+                "INSERT INTO email_messages (id,resend_account_id,provider_email_id,sender,subject,received_at,authentication,headers) VALUES (1,'one','mail1','sender@example.org','Hi',CURRENT_TIMESTAMP,'{}','{}')"
+            )
+        )
+        conn.execute(
+            text(
+                "INSERT INTO email_private_objects (key,bucket,message_id,candidate_id,scope) VALUES ('forwarding/1/payload.json','private',1,1,'candidate')"
+            )
+        )
         conn.execute(text("DELETE FROM candidates WHERE id=1"))
         conn.execute(text("DELETE FROM email_messages WHERE id=1"))
-        orphan = conn.execute(text("SELECT key,candidate_id,message_id,status FROM email_private_objects")).one()
+        orphan = conn.execute(
+            text("SELECT key,candidate_id,message_id,status FROM email_private_objects")
+        ).one()
         assert orphan == ("forwarding/1/payload.json", None, None, "uploading")
     finally:
         conn.close()
     output = io.StringIO()
-    with Operations.context(MigrationContext.configure(dialect_name="mysql", opts={"as_sql": True, "output_buffer": output})):
+    with Operations.context(
+        MigrationContext.configure(
+            dialect_name="mysql", opts={"as_sql": True, "output_buffer": output}
+        )
+    ):
         module.upgrade()
     import re
-    for ddl in (output.getvalue(), str(CreateTable(EmailPrivateObject.__table__).compile(dialect=mysql.dialect()))):
+
+    for ddl in (
+        output.getvalue(),
+        str(CreateTable(EmailPrivateObject.__table__).compile(dialect=mysql.dialect())),
+    ):
         assert "SET NULL" in ddl
         for name in re.findall(r"(?:CONSTRAINT|INDEX)\s+`?([a-zA-Z0-9_]+)`?", ddl):
             assert len(name) <= 64, name
+
+
+def test_email_security_timestamps_preserve_mysql_microseconds():
+    from scaffold.models.email import ApplicationEmailChallenge, EmailDelivery
+
+    for column in (
+        "requested_at",
+        "expires_at",
+        "screen_observed_at",
+        "code_expires_at",
+        "reserved_at",
+        "used_at",
+        "finished_at",
+        "created_at",
+        "updated_at",
+    ):
+        assert (
+            ApplicationEmailChallenge.__table__.c[column].type.dialect_impl(mysql.dialect()).fsp
+            == 6
+        )
+    assert (
+        EmailDelivery.__table__.c.destination_verified_at.type.dialect_impl(mysql.dialect()).fsp
+        == 6
+    )
+    ddl = str(CreateTable(ApplicationEmailChallenge.__table__).compile(dialect=mysql.dialect()))
+    assert "DEFAULT CURRENT_TIMESTAMP(6)" in ddl
+    assert "requested_at DATETIME(6) NOT NULL" in ddl
+    assert "expires_at DATETIME(6) NOT NULL" in ddl
+
+
+def test_precision_migration_renders_mysql_and_keeps_sqlite_data_intact():
+    path = MIGRATION_PATH.with_name("0055_email_timestamp_precision.py")
+    spec = importlib.util.spec_from_file_location("candidate_email_0055", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    output = io.StringIO()
+    with Operations.context(
+        MigrationContext.configure(
+            dialect_name="mysql", opts={"as_sql": True, "output_buffer": output}
+        )
+    ):
+        module.upgrade()
+    sql = output.getvalue()
+    for column, nullable in module.CHALLENGE_COLUMNS:
+        assert f"{column} DATETIME(6)" in sql
+        if not nullable:
+            assert f"{column} DATETIME(6) NOT NULL" in sql
+    assert "destination_verified_at DATETIME(6) NULL" in sql
+    conn = migrated_connection()
+    try:
+        conn.execute(text("INSERT INTO candidates VALUES (1)"))
+        conn.execute(
+            text(
+                "INSERT INTO candidate_mailboxes (id,candidate_id,environment,address,resend_account_id) VALUES (1,1,'test','c-one@test.resend.app','one')"
+            )
+        )
+        conn.execute(text("INSERT INTO job_applications VALUES (1,NULL,NULL)"))
+        conn.execute(text("INSERT INTO application_runs VALUES (1)"))
+        conn.execute(
+            text(
+                "INSERT INTO application_email_challenges (id,candidate_id,mailbox_id,application_id,run_id,execution_owner,fence_version,session_id,recipient_address,context,requested_at,expires_at) VALUES (1,1,1,1,1,'owner',1,'session','c-one@test.resend.app','{}','2026-10-11 12:00:00.824693','2026-10-11 12:03:00.824693')"
+            )
+        )
+        with Operations.context(MigrationContext.configure(conn)):
+            module.upgrade()
+        assert (
+            conn.scalar(text("SELECT requested_at FROM application_email_challenges"))
+            == "2026-10-11 12:00:00.824693"
+        )
+    finally:
+        conn.close()

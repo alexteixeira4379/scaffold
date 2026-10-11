@@ -15,10 +15,13 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.dialects import mysql
+from scaffold.models.dashboard_types import CurrentTimestamp6
 
 from scaffold.base import CoreBase
 
 ID = BigInteger().with_variant(Integer, "sqlite")
+EMAIL_DATETIME_6 = DateTime().with_variant(mysql.DATETIME(fsp=6), "mysql")
 
 
 class EmailTimestamps:
@@ -140,7 +143,9 @@ class EmailDelivery(EmailTimestamps, CoreBase):
     identity_id: Mapped[int | None] = mapped_column(
         ID, ForeignKey("auth_verified_identities.id", ondelete="SET NULL"), nullable=True
     )
-    destination_verified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    destination_verified_at: Mapped[datetime | None] = mapped_column(
+        EMAIL_DATETIME_6, nullable=True
+    )
     resend_account_id: Mapped[str] = mapped_column(String(64))
     idempotency_key: Mapped[str] = mapped_column(String(191))
     provider_send_id: Mapped[str | None] = mapped_column(String(191), nullable=True)
@@ -159,6 +164,12 @@ class EmailDelivery(EmailTimestamps, CoreBase):
 
 class ApplicationEmailChallenge(EmailTimestamps, CoreBase):
     __tablename__ = "application_email_challenges"
+    created_at: Mapped[datetime] = mapped_column(
+        EMAIL_DATETIME_6, server_default=CurrentTimestamp6()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        EMAIL_DATETIME_6, server_default=CurrentTimestamp6(), onupdate=datetime.utcnow
+    )
     __table_args__ = (
         UniqueConstraint("application_id", "run_id", "session_id"),
         UniqueConstraint("reservation_token"),
@@ -180,20 +191,20 @@ class ApplicationEmailChallenge(EmailTimestamps, CoreBase):
     )
     recipient_address: Mapped[str] = mapped_column(String(320))
     context: Mapped[dict] = mapped_column(JSON, default=dict)
-    requested_at: Mapped[datetime] = mapped_column(DateTime)
-    expires_at: Mapped[datetime] = mapped_column(DateTime)
-    screen_observed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    requested_at: Mapped[datetime] = mapped_column(EMAIL_DATETIME_6)
+    expires_at: Mapped[datetime] = mapped_column(EMAIL_DATETIME_6)
+    screen_observed_at: Mapped[datetime | None] = mapped_column(EMAIL_DATETIME_6, nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="waiting", server_default="waiting")
     message_id: Mapped[int | None] = mapped_column(
         ID, ForeignKey("email_messages.id", ondelete="SET NULL"), nullable=True
     )
     encrypted_code: Mapped[str | None] = mapped_column(Text, nullable=True)
-    code_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    code_expires_at: Mapped[datetime | None] = mapped_column(EMAIL_DATETIME_6, nullable=True)
     reservation_token: Mapped[str | None] = mapped_column(String(64), nullable=True)
     reserved_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    reserved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    reserved_at: Mapped[datetime | None] = mapped_column(EMAIL_DATETIME_6, nullable=True)
+    used_at: Mapped[datetime | None] = mapped_column(EMAIL_DATETIME_6, nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(EMAIL_DATETIME_6, nullable=True)
     result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
