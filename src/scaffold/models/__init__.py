@@ -216,3 +216,6 @@ __all__ += ["EmailPrivateObject"]
 
 from scaffold.models.application.application_answer_cache import ApplicationAnswerCache
 __all__ += ["ApplicationAnswerCache"]
+
+from scaffold.models.linkedin_profiles import LinkedInProfile
+__all__ += ["LinkedInProfile"]
