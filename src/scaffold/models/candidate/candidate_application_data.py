@@ -40,6 +40,9 @@ class CandidateApplicationData(CoreBase):
     veteran_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
     disability_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
+    # Generic, explicitly declared application information; separate from demographics.
+    legal_information: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
     # Custom overrides for recurring questions
     custom_answers: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
