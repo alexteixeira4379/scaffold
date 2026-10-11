@@ -213,3 +213,6 @@ __all__ += [
 
 from scaffold.models.email import EmailPrivateObject
 __all__ += ["EmailPrivateObject"]
+
+from scaffold.models.application.application_answer_cache import ApplicationAnswerCache
+__all__ += ["ApplicationAnswerCache"]
