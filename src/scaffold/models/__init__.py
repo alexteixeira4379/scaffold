@@ -84,7 +84,10 @@ from scaffold.models.tracking.tracking_sessions import TrackingSession
 from scaffold.models.tracking.tracking_visits import TrackingVisit
 
 __all__ = [
-    "AuthVerifiedIdentity", "CandidateNotificationPreference", "JobCandidatePreference", "ResumePersona",
+    "AuthVerifiedIdentity",
+    "CandidateNotificationPreference",
+    "JobCandidatePreference",
+    "ResumePersona",
     "ResumeProfile",
     "ResumeProfileExperience",
     "ResumeProfileEducation",
@@ -177,6 +180,33 @@ from scaffold.models.domain_delivery import (
     CollectionCoverage,
 )  # noqa: F401
 
-from scaffold.models.dashboard import AuthVerifiedIdentity, CandidateNotificationPreference, JobCandidatePreference, ResumePersona
+from scaffold.models.dashboard import (
+    AuthVerifiedIdentity,
+    CandidateNotificationPreference,
+    JobCandidatePreference,
+    ResumePersona,
+)
 
 from scaffold.models.ats import discovery  # noqa: F401
+
+from scaffold.models.email import (
+    CandidateMailbox,
+    EmailWebhookEvent,
+    EmailMessage,
+    EmailMessageRecipient,
+    EmailAttachment,
+    EmailDelivery,
+    ApplicationEmailChallenge,
+    EmailRecoveryCursor,
+)
+
+__all__ += [
+    "CandidateMailbox",
+    "EmailWebhookEvent",
+    "EmailMessage",
+    "EmailMessageRecipient",
+    "EmailAttachment",
+    "EmailDelivery",
+    "ApplicationEmailChallenge",
+    "EmailRecoveryCursor",
+]

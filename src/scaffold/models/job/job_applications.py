@@ -2,7 +2,18 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Index, Text, UniqueConstraint, func
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from scaffold.base import CoreBase
@@ -21,7 +32,9 @@ class JobApplication(CoreBase):
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    job_match_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("job_matches.id"), nullable=False)
+    job_match_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("job_matches.id"), nullable=False
+    )
     status: Mapped[JobApplicationStatus] = mapped_column(
         _job_application_status,
         nullable=False,
@@ -34,6 +47,12 @@ class JobApplication(CoreBase):
     )
     easy_apply: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     prepared: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    application_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    mailbox_id: Mapped[int | None] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        ForeignKey("candidate_mailboxes.id"),
+        nullable=True,
+    )
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     process_details: Mapped[str | None] = mapped_column(Text, nullable=True)
     application_url_snapshot: Mapped[str | None] = mapped_column(Text, nullable=True)

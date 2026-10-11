@@ -9,6 +9,7 @@ from scaffold.messaging.topology import (
 
 DOMAIN_EXCHANGE = "jobito.domain"
 SUBSCRIPTIONS = {
+    "email.lifecycle": ("auth.contact.verified",),
     "candidate.lifecycle": ("subscription.#", "auth.contact.verified"),
     "resume.lifecycle": (
         "billing.access.reconciled",

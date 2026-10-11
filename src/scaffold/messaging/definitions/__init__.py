@@ -3,6 +3,7 @@ from scaffold.messaging.definitions.jobs import jobs_topology
 from scaffold.messaging.definitions.linkedin import linkedin_topology
 from scaffold.messaging.topology import MessagingTopology, QueueDefinition
 from scaffold.messaging.definitions.domain import domain_topology
+from scaffold.messaging.definitions.email import email_topology
 
 
 def get_full_topology() -> MessagingTopology:
@@ -14,6 +15,7 @@ def get_full_topology() -> MessagingTopology:
         .merge(linkedin_topology)
         .merge(billing_topology)
         .merge(domain_topology())
+        .merge(email_topology())
     )
 
 
