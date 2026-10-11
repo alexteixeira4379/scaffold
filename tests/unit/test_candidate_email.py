@@ -258,3 +258,34 @@ def test_mysql_identifier_names_stay_within_64_characters():
         migration().upgrade()
     for name in re.findall(r"(?:CONSTRAINT|INDEX)\s+`?([a-zA-Z0-9_]+)`?", output.getvalue()):
         assert len(name) <= 64, name
+
+
+def test_private_object_migration_preserves_cleanup_references_after_deletion():
+    from scaffold.models.email import EmailPrivateObject
+    path = MIGRATION_PATH.with_name("0054_email_private_objects.py")
+    spec = importlib.util.spec_from_file_location("candidate_email_0054", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    conn = migrated_connection()
+    try:
+        with Operations.context(MigrationContext.configure(conn)):
+            module.upgrade()
+        columns = inspect(conn).get_columns("email_private_objects")
+        assert {c["name"] for c in columns} == set(EmailPrivateObject.__table__.columns.keys())
+        conn.execute(text("INSERT INTO candidates VALUES (1)"))
+        conn.execute(text("INSERT INTO email_messages (id,resend_account_id,provider_email_id,sender,subject,received_at,authentication,headers) VALUES (1,'one','mail1','sender@example.org','Hi',CURRENT_TIMESTAMP,'{}','{}')"))
+        conn.execute(text("INSERT INTO email_private_objects (key,bucket,message_id,candidate_id,scope) VALUES ('forwarding/1/payload.json','private',1,1,'candidate')"))
+        conn.execute(text("DELETE FROM candidates WHERE id=1"))
+        conn.execute(text("DELETE FROM email_messages WHERE id=1"))
+        orphan = conn.execute(text("SELECT key,candidate_id,message_id,status FROM email_private_objects")).one()
+        assert orphan == ("forwarding/1/payload.json", None, None, "uploading")
+    finally:
+        conn.close()
+    output = io.StringIO()
+    with Operations.context(MigrationContext.configure(dialect_name="mysql", opts={"as_sql": True, "output_buffer": output})):
+        module.upgrade()
+    import re
+    for ddl in (output.getvalue(), str(CreateTable(EmailPrivateObject.__table__).compile(dialect=mysql.dialect()))):
+        assert "SET NULL" in ddl
+        for name in re.findall(r"(?:CONSTRAINT|INDEX)\s+`?([a-zA-Z0-9_]+)`?", ddl):
+            assert len(name) <= 64, name

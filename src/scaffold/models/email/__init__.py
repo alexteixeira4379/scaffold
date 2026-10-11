@@ -40,7 +40,13 @@ class CandidateMailbox(EmailTimestamps, CoreBase):
     resend_account_id: Mapped[str] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(32), default="active", server_default="active")
     forward_identity_id: Mapped[int | None] = mapped_column(
-        ID, ForeignKey("auth_verified_identities.id", name="fk_candidate_mailboxes_forward_identity", ondelete="SET NULL"), nullable=True
+        ID,
+        ForeignKey(
+            "auth_verified_identities.id",
+            name="fk_candidate_mailboxes_forward_identity",
+            ondelete="SET NULL",
+        ),
+        nullable=True,
     )
     deactivated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
@@ -212,3 +218,25 @@ __all__ = [
     "ApplicationEmailChallenge",
     "EmailRecoveryCursor",
 ]
+
+
+class EmailPrivateObject(CoreBase):
+    """Durable deletion references survive account and delivery cascades."""
+
+    __tablename__ = "email_private_objects"
+    key: Mapped[str] = mapped_column(String(512), primary_key=True)
+    bucket: Mapped[str] = mapped_column(String(191))
+    message_id: Mapped[int | None] = mapped_column(
+        ID, ForeignKey("email_messages.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    candidate_id: Mapped[int | None] = mapped_column(
+        ID, ForeignKey("candidates.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    scope: Mapped[str] = mapped_column(String(32))
+    status: Mapped[str] = mapped_column(String(32), default="uploading", server_default="uploading")
+    lease_owner: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+__all__ += ["EmailPrivateObject"]

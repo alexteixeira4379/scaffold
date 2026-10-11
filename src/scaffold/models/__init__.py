@@ -210,3 +210,6 @@ __all__ += [
     "ApplicationEmailChallenge",
     "EmailRecoveryCursor",
 ]
+
+from scaffold.models.email import EmailPrivateObject
+__all__ += ["EmailPrivateObject"]
