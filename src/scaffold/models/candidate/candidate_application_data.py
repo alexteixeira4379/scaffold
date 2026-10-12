@@ -2,8 +2,18 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, UniqueConstraint, func
-from sqlalchemy.dialects.mysql import JSON
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Text,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+    func,
+)
+from sqlalchemy.dialects.mysql import JSON, DATETIME
 from sqlalchemy.orm import Mapped, mapped_column
 
 from scaffold.base import CoreBase
@@ -40,7 +50,29 @@ class CandidateApplicationData(CoreBase):
     veteran_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
     disability_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
-    # Generic, explicitly declared application information; separate from demographics.
+    # Canonical generic information. Defaults never assert health or legal facts.
+    accommodation_requested: Mapped[str] = mapped_column(
+        String(8), nullable=False, server_default="unknown", default="unknown"
+    )
+    application_context_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    information_adopted: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="0", default=False
+    )
+    work_permissions_adopted: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="0", default=False
+    )
+    accommodations_adopted: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="0", default=False
+    )
+    credentials_adopted: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="0", default=False
+    )
+    information_declared_at: Mapped[datetime | None] = mapped_column(
+        DateTime().with_variant(DATETIME(fsp=6), "mysql"), nullable=True
+    )
+    information_source: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+    # Legacy snapshot retained read-only after canonical adoption.
     legal_information: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Custom overrides for recurring questions

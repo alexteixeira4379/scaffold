@@ -219,3 +219,6 @@ __all__ += ["ApplicationAnswerCache"]
 
 from scaffold.models.linkedin_profiles import LinkedInProfile
 __all__ += ["LinkedInProfile"]
+
+from scaffold.models.candidate.candidate_work_permissions import CandidateWorkPermission
+__all__ += ["CandidateWorkPermission"]

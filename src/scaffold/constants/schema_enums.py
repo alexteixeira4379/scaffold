@@ -266,6 +266,8 @@ class ResumeProfileSource(StrEnum):
 class ResumeCredentialType(StrEnum):
     COURSE = "course"
     CERTIFICATION = "certification"
+    LICENSE = "license"
+    OTHER = "other"
 
 
 class ResumeVolunteerType(StrEnum):
