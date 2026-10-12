@@ -431,8 +431,18 @@ class GroqLLM:
             "Authorization": f"Bearer {self._api_key}",
             "Content-Type": "application/json",
         }
-        async with httpx.AsyncClient(timeout=self._timeout_s) as client:
-            resp = await client.post(url, headers=headers, json=body)
+        from scaffold.ai.diagnostic_capture import emit
+        call_id = str(uuid.uuid4())
+        emit("ai_request", call_id=call_id, provider="groq", tier=tier.value,
+             endpoint=url, request=body, timeout_seconds=self._timeout_s)
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout_s) as client:
+                resp = await client.post(url, headers=headers, json=body)
+        except BaseException as exc:
+            emit("ai_transport_error", call_id=call_id, error_type=type(exc).__name__)
+            raise
+        # Capture before HTTP/JSON validation, including malformed output and failed_generation.
+        emit("ai_response", call_id=call_id, http_status=resp.status_code, raw_body=resp.text)
         if resp.status_code >= 400:
             raise AIProviderError(f"groq http {resp.status_code}: {resp.text[:2000]}")
         payload = resp.json()

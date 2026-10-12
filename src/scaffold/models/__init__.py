@@ -222,3 +222,6 @@ __all__ += ["LinkedInProfile"]
 
 from scaffold.models.candidate.candidate_work_permissions import CandidateWorkPermission
 __all__ += ["CandidateWorkPermission"]
+
+from scaffold.models.application.answers_logs import AnswersLog
+__all__ += ["AnswersLog"]

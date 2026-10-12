@@ -153,6 +153,9 @@ class AIClient:
             if system is not None:
                 thread.append(ChatMessage(role="system", content=system))
             thread.append(ChatMessage(role="user", content=prompt))
+        from scaffold.ai.diagnostic_capture import emit
+        emit("ai_call", tier=tier.value, output=output.value, messages=thread,
+             temperature=temperature, max_tokens=max_tokens)
         return await self._backend.complete(
             tier,
             output,

@@ -233,3 +233,16 @@ O motor e sua cobertura de testes pertencem ao `jobito-application-kit`, em
 workers ATS e LinkedIn. Consumidores devem importar os contratos e o motor do
 Application Kit; o scaffold não depende dessa lib. Wheels de versões anteriores
 continuam representando seus releases originais.
+
+
+### Histórico de respostas das aplicações
+
+A revisão core `0060` cria `answers_logs`, mapeada por `AnswersLog`, para snapshots
+completos das tentativas malsucedidas do LinkedIn e dos ATS. Os workers usam
+`scaffold.ai.diagnostic_capture` para capturar chamadas Groq apenas dentro de uma
+execução de aplicação; outros consumidores de `AIClient` não ativam essa captura.
+A documentação funcional e as consultas estão no README de `application-kit`.
+
+`scripts/answers_logs_migration.py` inspeciona a revisão e a tabela usando
+`MYSQL_PUBLIC_URL` (ou `DATABASE_URL`); `--apply` aplica somente `0059 -> 0060` e
+verifica as colunas criadas. Não executa outras revisões pendentes.
