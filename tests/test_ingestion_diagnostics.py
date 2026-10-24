@@ -286,11 +286,19 @@ def test_fresh_capacity_schedule_is_not_incompatibility():
     assert r["evaluation_schedule"]["next_attempt_at"] == (NOW + timedelta(minutes=15)).isoformat()
 
 
-def test_country_unspecified_is_explicit_without_fabricating_brazil_and_pause_wins():
+def test_no_country_preference_discloses_partial_market_without_hiding_opportunities():
     profile = NS(id=7, candidate_id=42, active=True, archived_at=None, target_country=None)
-    r = report(profile=profile)
-    assert r["state"] == "coverage_limited"
-    assert "country_unspecified" in r["reason_codes"]
+    r = report(profile=profile, definitions=[NS(id=1, country="BR")], available_matches=[NS(id=1)])
+    assert r["state"] == "opportunities_available"
+    assert "supported_partial_market" in r["reason_codes"]
+    assert "country_unspecified" not in r["reason_codes"]
     assert profile.target_country is None
     profile.active = False
     assert report(profile=profile)["state"] == "paused"
+
+
+def test_no_country_preference_without_coverage_can_be_reconciled():
+    profile = NS(id=7, candidate_id=42, active=True, archived_at=None, target_country=None)
+    r = report(profile=profile, definitions=[])
+    assert r["state"] == "awaiting_coverage"
+    assert "country_unspecified" not in r["reason_codes"]

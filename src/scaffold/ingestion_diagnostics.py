@@ -159,12 +159,8 @@ def summarize(
         state = "archived"
     elif not profile.active:
         state = "paused"
-    elif not (getattr(profile, "target_country", None) or "").strip():
-        state = "coverage_limited"
-        codes.append("country_unspecified")
     elif discovery_fresh and discovery.get("status") in {
         "country_unsupported",
-        "country_unspecified",
         "definition_scope_mismatch",
     }:
         state = "coverage_limited"
@@ -192,6 +188,15 @@ def summarize(
         state = "search_unconfirmed"
     else:
         state = "awaiting_candidates"
+    # No country preference permits supported markets; preserve funnel states.
+    if profile.active and not getattr(profile, "archived_at", None) and (
+        (discovery_fresh and discovery.get("status") == "supported_partial_market")
+        or (
+            not (getattr(profile, "target_country", None) or "").strip()
+            and any((getattr(d, "country", None) or "").upper() == "BR" for d in definitions)
+        )
+    ):
+        codes.append("supported_partial_market")
     if last_search is None or last_search < now - timedelta(hours=24):
         codes.append("no_recent_associated_collection_success")
     if incomplete:
