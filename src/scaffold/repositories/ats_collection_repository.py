@@ -1,6 +1,7 @@
 """Short transactions for ATS collection; token and expiry fence every write."""
 from datetime import timedelta
 from uuid import uuid4
+from scaffold.ats_cadence import collection_interval
 from sqlalchemy import select, update, or_
 from scaffold.models.ats.ats_discovery_sources import AtsDiscoverySource as Source
 from scaffold.models.ats.ats_providers import AtsProvider as Provider
@@ -158,7 +159,7 @@ class AtsCollectionRepository:
     async def interval(self, session, *, provider_id):
         value = (await session.execute(select(Schedule.interval_seconds).where(
             Schedule.ats_provider_id == provider_id, Schedule.active.is_(True)))).scalar_one_or_none()
-        return max(345600, min(int(value or 345600), 432000))
+        return collection_interval(value)
 
 
 ats_collection_repository = AtsCollectionRepository()
