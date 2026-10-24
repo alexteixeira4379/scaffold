@@ -18,12 +18,18 @@ from scaffold.ai.contracts import (
 )
 from scaffold.ai.formatters import parse_json_content, prepare_messages
 from scaffold.ai.schema_shape_diagnostics import generation_shape
+from scaffold.ai.rate_limits import safe_rate_limits
 
 
 def structured_error_metadata(response, schema=None):
     """Technical diagnostics only; provider messages may echo private prompts."""
     result = {"http_status": response.status_code, "response_bytes": len(response.content),
               "response_hash": hashlib.sha256(response.content).hexdigest()}
+    limits = safe_rate_limits(response.headers)
+    if limits:
+        result["rate_limit"] = limits
+        if "retry_after_seconds" in limits:
+            result["retry_after_seconds"] = limits["retry_after_seconds"]
     try:
         payload = response.json()
         error = payload.get("error") if isinstance(payload, dict) else None
@@ -524,6 +530,7 @@ class GroqLLM:
                 input_tokens=usage.get("prompt_tokens") or 0,
                 output_tokens=usage.get("completion_tokens") or 0,
                 reasoning_tokens=reported_reasoning_tokens(usage),
+                rate_limit=safe_rate_limits(response.headers) or None,
             )
         except (KeyError, IndexError, TypeError) as exc:
             raise AIProviderError(

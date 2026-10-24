@@ -67,3 +67,4 @@ class StructuredResult(BaseModel):
     input_tokens: int = 0
     output_tokens: int = 0
     reasoning_tokens: int | None = None
+    rate_limit: dict[str, int] | None = None
