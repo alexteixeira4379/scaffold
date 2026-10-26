@@ -273,9 +273,11 @@ def test_job_ingested_rejects_invalid_hash_formats(hash_value) -> None:
         IngestedJobPayload.model_validate(example)
 
 
-def test_job_ingested_requires_ingestion_status_completed() -> None:
+def test_job_ingested_distinguishes_failed_from_completed() -> None:
     broken = copy.deepcopy(INGESTED_EXAMPLE)
     broken["metadata"]["ingestion"]["status"] = "failed"
+    assert IngestedJobPayload.model_validate(broken).metadata.ingestion.status == "failed"
+    broken["metadata"]["ingestion"]["status"] = "unknown"
     with pytest.raises(ValidationError):
         IngestedJobPayload.model_validate(broken)
 

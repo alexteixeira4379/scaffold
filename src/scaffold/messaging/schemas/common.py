@@ -51,6 +51,7 @@ class RoutedJobBody(JobBodyBase):
 
 
 class IngestedJobBody(RoutedJobBody):
+    page_text: str | None = None
     url_hash: str
 
     @field_validator("url_hash")
@@ -113,7 +114,18 @@ class CommonIngestionRequestMetadata(MetadataBase):
 class IngestionInfo(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    status: Literal["completed"]
+    status: Literal["completed", "failed"]
+    method: Literal["browserless"] | None = None
+    page_extract: dict[str, object] | None = None
+    is_linkedin_url: bool | None = None
+    linkedin_easy_apply: bool | None = None
+    parser_version: str | None = None
+    http_status: int | None = None
+    elapsed_ms: int | None = None
+    attempts: int | None = None
+    application_type: str | None = None
+    detection: dict[str, object] | None = None
+    extraction: dict[str, object] | None = None
     ingested_at: datetime
     worker: Literal["linkedin-ingestion-worker", "common-ingestion-worker"]
     original_url: str | None = None
