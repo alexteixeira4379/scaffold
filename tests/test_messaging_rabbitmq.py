@@ -184,3 +184,33 @@ async def test_rabbitmq_fetch_one_transfer_confirms_publish_before_ack() -> None
     )
 
     assert [name for name, _ in calls] == ["publish_confirmed", "basic_ack"]
+
+
+async def test_closed_consumer_channel_does_not_wait_for_readiness_before_reconnect():
+    import asyncio
+    from unittest.mock import AsyncMock
+
+    channel = SimpleNamespace(is_closed=True, close=AsyncMock())
+    queue = SimpleNamespace(channel=channel, cancel=AsyncMock())
+    broker = RabbitMQMessaging("amqp://unused")
+    broker._consumers["input"] = (queue, "tag", asyncio.Queue())
+    await asyncio.wait_for(broker.stop_consumer("input"), 0.1)
+    queue.cancel.assert_not_awaited()
+    channel.close.assert_awaited_once()
+    assert "input" not in broker._consumers
+
+
+async def test_consumer_cancel_timeout_does_not_block_channel_cleanup():
+    import asyncio
+    from unittest.mock import AsyncMock
+
+    channel = SimpleNamespace(is_closed=False, close=AsyncMock())
+
+    async def blocked_cancel(tag):
+        await asyncio.Event().wait()
+
+    queue = SimpleNamespace(channel=channel, cancel=blocked_cancel)
+    broker = RabbitMQMessaging("amqp://unused", timeout_s=0.01)
+    broker._consumers["input"] = (queue, "tag", asyncio.Queue())
+    await asyncio.wait_for(broker.stop_consumer("input"), 0.2)
+    channel.close.assert_awaited_once()

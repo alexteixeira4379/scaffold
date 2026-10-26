@@ -109,10 +109,13 @@ class RabbitMQMessaging:
         entry = self._consumers.pop(queue_name, None)
         if entry:
             queue, tag, _ = entry
-            try:
-                await queue.cancel(tag)
-            except Exception:
-                pass
+            # A robust queue waits for channel readiness before cancel(). On a
+            # closed connection that wait can block the reconnect itself.
+            if getattr(queue.channel, "is_closed", False) is not True:
+                try:
+                    await asyncio.wait_for(queue.cancel(tag), timeout=self._timeout_s)
+                except Exception:
+                    pass
             # Closing the owning channel preserves all buffered unacked messages.
             try:
                 await queue.channel.close()
