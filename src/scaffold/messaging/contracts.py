@@ -9,6 +9,7 @@ class OutboundMessage(BaseModel):
     body: dict[str, object]
     correlation_id: str | None = None
     headers: dict[str, str] = Field(default_factory=dict)
+    raw_body: bytes | None = None
 
 
 class QueueSubscription(BaseModel):

@@ -60,6 +60,11 @@ async def test_rollback_does_not_emit_and_consumer_failure_does_not_ack_effect(d
         raise RuntimeError("owner unavailable")
 
     await consume_once(db, queue, queue.queue_name, fail)
-    assert await broker.fetch_one("candidate.lifecycle.retry") is not None
+    # Recovery now lives durably outside the main queue, without relying on
+    # broker TTL/dead-letter transfer guarantees.
+    assert await broker.fetch_one("candidate.lifecycle") is None
     async with db() as session:
         assert await session.scalar(select(func.count()).select_from(DomainInbox)) == 0
+        retry = await session.scalar(select(DomainOutbox).where(DomainOutbox.source == queue.queue_name))
+        assert retry is not None and retry.destination == queue.queue_name
+        assert retry.available_at > datetime.utcnow() and retry.delivered_at is None

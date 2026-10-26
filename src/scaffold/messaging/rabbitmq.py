@@ -1,3 +1,4 @@
+import asyncio
 import json
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any, cast
@@ -28,6 +29,7 @@ class RabbitMQMessaging:
         self._connection: Any = None
         self._channel: Any = None
         self._publisher: Any = None
+        self._consumers: dict[str, tuple[Any, str, asyncio.Queue]] = {}
 
     async def connect(self) -> None:
         aio_pika = _import_aio_pika()
@@ -43,6 +45,8 @@ class RabbitMQMessaging:
         )
 
     async def close(self) -> None:
+        for name in list(self._consumers):
+            await self.stop_consumer(name)
         if self._publisher is not None:
             try:
                 await self._publisher.close()
@@ -66,13 +70,14 @@ class RabbitMQMessaging:
         aio_pika = _import_aio_pika()
         if self._channel is None:
             raise RuntimeError("not connected")
-        body = json.dumps(message.body, ensure_ascii=False).encode("utf-8")
+        body = message.raw_body if message.raw_body is not None else json.dumps(message.body, ensure_ascii=False).encode("utf-8")
         hdrs: dict[str, str] = dict(message.headers)
         amqp_message = aio_pika.Message(
             body=body,
             content_type="application/json",
             delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
             correlation_id=message.correlation_id or None,
+            message_id=str(message.body.get("event_id") or hdrs.get("x-event-id") or "") or None,
             headers=cast(Any, hdrs or None),
         )
         publisher = self._publisher or self._channel
@@ -81,13 +86,52 @@ class RabbitMQMessaging:
             if message.exchange
             else publisher.default_exchange
         )
-        await exchange.publish(amqp_message, routing_key=message.queue, mandatory=True)
+        await exchange.publish(amqp_message, routing_key=message.queue, mandatory=True,
+                               timeout=self._timeout_s)
+
+    async def start_consumer(self, queue_name: str, *, prefetch_count: int, durable=True):
+        if queue_name in self._consumers:
+            return
+        if self._connection is None:
+            raise RuntimeError("not connected")
+        channel = await self._connection.channel(publisher_confirms=False)
+        try:
+            await channel.set_qos(prefetch_count=prefetch_count)
+            queue = await channel.declare_queue(queue_name, durable=durable, passive=True)
+            buffer = asyncio.Queue(maxsize=prefetch_count)
+            tag = await queue.consume(buffer.put, no_ack=False)
+            self._consumers[queue_name] = (queue, tag, buffer)
+        except BaseException:
+            await channel.close()
+            raise
+
+    async def stop_consumer(self, queue_name: str):
+        entry = self._consumers.pop(queue_name, None)
+        if entry:
+            queue, tag, _ = entry
+            try:
+                await queue.cancel(tag)
+            except Exception:
+                pass
+            # Closing the owning channel preserves all buffered unacked messages.
+            try:
+                await queue.channel.close()
+            except Exception:
+                pass
 
     async def fetch_one(self, queue_name: str, *, durable: bool = True) -> FetchedMessage | None:
         if self._channel is None:
             raise RuntimeError("not connected")
-        queue = await self._channel.declare_queue(queue_name, durable=durable, passive=True)
-        incoming = await queue.get(fail=False, no_ack=False)
+        if getattr(self._channel, "is_closed", False):
+            raise ConnectionError("consumer_channel_closed")
+        if queue_name in self._consumers:
+            try:
+                incoming = await asyncio.wait_for(self._consumers[queue_name][2].get(), timeout=0.1)
+            except TimeoutError:
+                return None
+        else:
+            queue = await self._channel.declare_queue(queue_name, durable=durable, passive=True)
+            incoming = await queue.get(fail=False, no_ack=False)
         if incoming is None:
             return None
 
@@ -120,16 +164,19 @@ class RabbitMQMessaging:
         hdrs = incoming.headers
         read_count = read_count_from_amqp(bool(incoming.redelivered), hdrs)
         correlation_id = incoming.correlation_id
+        decode_error = None
         try:
             parsed = json.loads(incoming.body.decode())
         except (UnicodeDecodeError, json.JSONDecodeError):
-            await incoming.nack(requeue=False)
-            return None
+            parsed = {}
+            decode_error = "invalid_json"
         if not isinstance(parsed, dict):
-            await incoming.nack(requeue=False)
-            return None
+            parsed = {}
+            decode_error = "object_required"
         body: dict[str, object] = {str(k): v for k, v in parsed.items()}
-        return FetchedMessage(body, read_count, correlation_id, queue_name, ack, nack, transfer)
+        return FetchedMessage(body, read_count, correlation_id, queue_name, ack, nack, transfer,
+                              raw_body=incoming.body, headers=json.loads(json.dumps(hdrs or {}, default=str)),
+                              message_id=getattr(incoming, "message_id", None), decode_error=decode_error)
 
     async def consume(
         self,

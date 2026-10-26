@@ -14,6 +14,7 @@ class FetchedMessage:
         "_ack",
         "_nack",
         "_transfer",
+        "raw_body", "headers", "message_id", "decode_error",
     )
 
     def __init__(
@@ -25,6 +26,8 @@ class FetchedMessage:
         ack: Callable[[], Awaitable[None]],
         nack: Callable[[bool], Awaitable[None]],
         transfer: Callable[[str, dict[str, object], str | None, dict[str, str] | None], Awaitable[None]] | None = None,
+        *, raw_body: bytes | None = None, headers: dict | None = None,
+        message_id: str | None = None, decode_error: str | None = None,
     ) -> None:
         self.body = body
         self.read_count = read_count
@@ -34,12 +37,20 @@ class FetchedMessage:
         self._ack = ack
         self._nack = nack
         self._transfer = transfer
+        self.raw_body = raw_body
+        self.headers = headers or {}
+        self.message_id = message_id
+        self.decode_error = decode_error
+
+    @property
+    def finalized(self) -> bool:
+        return self._finalized
 
     @property
     def queue_name(self) -> str:
         return self._queue_name
 
-    async def delete(self) -> None:
+    async def delete(self, *, receipt: dict | None = None) -> None:
         if self._finalized:
             raise RuntimeError("already finalized")
         await self._ack()

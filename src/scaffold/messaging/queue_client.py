@@ -11,6 +11,7 @@ class QueueClient:
         self._broker = broker
         self._queue_name = queue_name
         self._durable = durable
+        self._prefetch_count: int | None = None
 
     @classmethod
     def from_settings(
@@ -39,6 +40,21 @@ class QueueClient:
             return
         await self._broker.close()
         await self._broker.connect()
+        if self._prefetch_count:
+            await self.start_consumer(prefetch_count=self._prefetch_count)
+
+    async def start_consumer(self, *, prefetch_count: int):
+        if prefetch_count < 1:
+            raise ValueError("prefetch_count must be positive")
+        self._prefetch_count = prefetch_count
+        start = getattr(self._broker, "start_consumer", None)
+        if start is not None:
+            await start(self._queue_name, prefetch_count=prefetch_count, durable=self._durable)
+
+    async def stop_consumer(self):
+        stop = getattr(self._broker, "stop_consumer", None)
+        if stop is not None:
+            await stop(self._queue_name)
 
     async def publish(
         self,

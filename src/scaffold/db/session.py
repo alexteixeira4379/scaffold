@@ -47,6 +47,7 @@ def get_engine() -> AsyncEngine:
             pool_pre_ping=settings.db_pool_pre_ping,
             pool_recycle=settings.db_pool_recycle,
             echo=settings.db_echo,
+            hide_parameters=True,
             **extra,
         )
     return _engine

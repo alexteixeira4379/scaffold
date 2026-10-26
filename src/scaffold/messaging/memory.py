@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 import uuid
 from collections import defaultdict, deque
@@ -49,6 +50,7 @@ class InMemoryMessaging:
                 "correlation_id": message.correlation_id,
                 "headers": message.headers,
                 "delivery_attempts": 0,
+                "raw_body": base64.b64encode(message.raw_body).decode() if message.raw_body is not None else None,
             },
             ensure_ascii=False,
         ).encode("utf-8")
@@ -155,7 +157,20 @@ class InMemoryMessaging:
             await self.publish(outbound)
             self._pending[queue_name].pop(token, None)
 
-        return FetchedMessage(body, attempts, correlation_id, queue_name, ack, nack, transfer)
+        raw_body = base64.b64decode(data["raw_body"]) if data.get("raw_body") is not None else json.dumps(body, ensure_ascii=False).encode()
+        decode_error = None
+        try:
+            parsed = json.loads(raw_body)
+            if not isinstance(parsed, dict):
+                decode_error = "object_required"
+                body = {}
+            else:
+                body = parsed
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            body, decode_error = {}, "invalid_json"
+        return FetchedMessage(body, attempts, correlation_id, queue_name, ack, nack, transfer,
+                              raw_body=raw_body, headers=data.get("headers", {}),
+                              message_id=body.get("event_id"), decode_error=decode_error)
 
     async def _next_delivery(self, name: str) -> bytes | None:
         if self._closed:
