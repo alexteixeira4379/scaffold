@@ -136,3 +136,20 @@ async def test_redis_unavailable_is_infrastructure():
             c, key=c.keys[0], limit=12, ttl_s=90, max_browser_session_s=60
         ).lease():
             pass
+
+
+async def test_long_shared_cooldown_defers_without_opening_browser():
+    from unittest.mock import AsyncMock
+    from scaffold.messaging.processing import DeferredMessage
+
+    c = IngestionBudget(URL, flow="linkedin")
+    await c.connect()
+    await c._redis.flushdb()
+    pacer = NavigationPacer(c)
+    await pacer.cooldown(60)
+    manager = AsyncMock()
+    with pytest.raises(DeferredMessage):
+        await IngestionBrowser(manager, pacer=pacer).render("https://www.linkedin.com/jobs/view/1")
+    manager.acquire.assert_not_called()
+    await c._redis.flushdb()
+    await c.close()

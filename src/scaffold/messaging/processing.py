@@ -37,11 +37,12 @@ class ReconciliationRequired(Exception):
 
 class DeferredMessage(Exception):
     """Wait for a dependency without spending the application failure budget."""
-    def __init__(self, delay_seconds: float, reason: str = "dependency_pending"):
+    def __init__(self, delay_seconds: float, reason: str = "dependency_pending", *, pause_consumer: bool = False):
         if delay_seconds <= 0:
             raise ValueError("deferral delay must be positive")
         super().__init__(reason)
         self.delay_seconds = delay_seconds
+        self.pause_consumer = pause_consumer
 
 
 class DuplicateEvent(Exception):

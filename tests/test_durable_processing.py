@@ -460,3 +460,16 @@ async def test_progress_timer_runs_with_all_slots_occupied(delivery_db, caplog):
     with caplog.at_level("ERROR"):
         await asyncio.wait_for(asyncio.gather(worker.run(stop), finish()), timeout=1)
     assert "worker_no_progress" in caplog.text and "in_flight=1" in caplog.text
+
+async def test_provider_cooldown_persists_retry_and_pauses_consumer(delivery_db):
+    async def handle(msg):
+        raise DeferredMessage(60, 'provider_cooldown', pause_consumer=True)
+    runtime=runner(delivery_db,handle)
+    msg=message()
+    before=asyncio.get_running_loop().time()
+    await runtime._process_durable(msg)
+    assert runtime._pause_until>=before+60
+    async with delivery_db() as session:
+        state=await session.get(WorkerDelivery,('test-consumer','event-1'))
+        assert state.status=='retry' and state.failures==0
+        assert await session.scalar(select(func.count()).select_from(DomainOutbox))==1

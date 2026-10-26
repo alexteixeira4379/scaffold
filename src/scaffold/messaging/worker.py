@@ -312,6 +312,10 @@ class QueueWorkerRunner:
             # Only the transport ACK lives here; if it is ambiguous the durable
             # outcome will suppress effects on the next broker delivery.
             await message.delete()
+            if isinstance(failure, DeferredMessage) and failure.pause_consumer:
+                self._pause_until = max(self._pause_until, asyncio.get_running_loop().time() + failure.delay_seconds)
+                self._logger.info("worker_deferred consumer=%s reason=%s delay_s=%s",
+                                  self._delivery.consumer, str(failure), failure.delay_seconds)
             self._unresolved_deliveries.pop(context.event_id, None)
             self._infrastructure_failures = 0
             self._logger.debug("delivery_finished consumer=%s outcome=%s", self._delivery.consumer, outcome)

@@ -5,12 +5,25 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 from scaffold.messaging.processing import InfrastructureUnavailable
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Literal
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+
+class BrowserlessLogFilter(logging.Filter):
+    """Management URLs must never write the Browserless token to logs."""
+
+    def filter(self, record):
+        record.msg = re.sub(r"(?i)(token=)[^&\s\"']+", r"\1<redacted>", record.getMessage())
+        record.args = ()
+        return True
+
+
+logging.getLogger("httpx").addFilter(BrowserlessLogFilter())
 
 logger = logging.getLogger(__name__)
 

@@ -10,7 +10,11 @@ from dataclasses import dataclass
 from scaffold.browser.admission import AdmissionUnavailable, SlotAdmission
 from scaffold.browser.manager import BrowserConfiguration, BrowserManager
 from scaffold.cache.redis import RedisCache
-from scaffold.messaging.processing import InfrastructureUnavailable, RetryableMessageError
+from scaffold.messaging.processing import (
+    DeferredMessage,
+    InfrastructureUnavailable,
+    RetryableMessageError,
+)
 
 
 class CollectionError(RetryableMessageError):
@@ -110,6 +114,8 @@ class NavigationPacer:
                 raise InfrastructureUnavailable("navigation_redis_unavailable") from exc
             if delay <= 0:
                 return
+            if delay > max(2.0, self.interval_s * 2):
+                raise DeferredMessage(delay + 1, "linkedin_navigation_cooldown", pause_consumer=True)
             await asyncio.sleep(min(delay, 1.0))
 
     async def cooldown(self, seconds=None):
@@ -147,6 +153,8 @@ class IngestionBrowser:
 
         opened = False
         try:
+            if self.pacer:
+                await self.pacer.acquire()
             async with self.session() as session:
                 opened = True
                 page = session.page
@@ -170,8 +178,6 @@ class IngestionBrowser:
 
                 if validate_navigation:
                     await page.route("**/*", route_request)
-                if self.pacer:
-                    await self.pacer.acquire()
                 try:
                     response = await page.goto(
                         url, wait_until="domcontentloaded", timeout=self.navigation_timeout_ms
@@ -268,7 +274,8 @@ async def ingestion_browser(flow):
         raise ValueError("inconsistent_ingestion_deadlines")
     await cache.connect()
     try:
-        await manager.verify_remote_configuration()
+        # Each acquire verifies the remote capacity. Start the consumer even
+        # during outages, so durable infrastructure backoff owns recovery.
         await manager.start()
         yield IngestionBrowser(
             manager,
