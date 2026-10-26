@@ -153,3 +153,56 @@ async def test_long_shared_cooldown_defers_without_opening_browser():
     manager.acquire.assert_not_called()
     await c._redis.flushdb()
     await c.close()
+
+
+async def test_browserless_restart_recovers_with_same_process_driver():
+    import subprocess
+    import httpx
+    from scaffold.browser.ingestion import CollectionError
+    from urllib.parse import quote
+
+    c = IngestionBudget(URL, flow="common", flow_limit=2)
+    await c.connect()
+    await c._redis.flushdb()
+    config = BrowserConfiguration(
+        "ws://localhost:33003", "synthetic", session_timeout_s=60, verify_remote=True
+    )
+    manager = BrowserManager(
+        config,
+        admission=SlotAdmission(c, key=c.keys[0], limit=12, ttl_s=90, max_browser_session_s=60),
+    )
+    await manager.start()
+    browser = IngestionBrowser(manager)
+    try:
+        pending = asyncio.create_task(
+            browser.render("data:text/html,<body>waiting for content</body>")
+        )
+        for _ in range(100):
+            if await c._redis.zcard(c.keys[0]):
+                break
+            await asyncio.sleep(0.02)
+        # The name belongs exclusively to this disposable test environment.
+        await asyncio.to_thread(
+            subprocess.run,
+            ["docker", "restart", "ingestion-test-browser"],
+            capture_output=True,
+            check=True,
+        )
+        with pytest.raises(CollectionError):
+            await pending
+        async with httpx.AsyncClient() as client:
+            for _ in range(100):
+                try:
+                    if (await client.get(config.management_url("/config"))).status_code == 200:
+                        break
+                except httpx.HTTPError:
+                    pass
+                await asyncio.sleep(0.1)
+        # A retained unverified lease is bounded; other capacity can recover immediately.
+        result = await browser.render(
+            "data:text/html," + quote("<body>" + ("Recovered rendered text. " * 20) + "</body>")
+        )
+        assert "Recovered rendered text." in result.html
+    finally:
+        await manager.close()
+        await c.close()
