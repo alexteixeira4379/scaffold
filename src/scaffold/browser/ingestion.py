@@ -58,7 +58,8 @@ class IngestionBudget(RedisCache):
         end
         for _,k in ipairs(KEYS) do
           redis.call('ZADD',k,now+tonumber(ARGV[2]),ARGV[1])
-          redis.call('EXPIRE',k,tonumber(ARGV[2])*2)
+          local last=redis.call('ZREVRANGE',k,0,0,'WITHSCORES')
+          redis.call('EXPIRE',k,math.max(tonumber(ARGV[2])*2,math.ceil(tonumber(last[2])-now)+1))
         end
         return 1
         """
@@ -74,7 +75,8 @@ class IngestionBudget(RedisCache):
           if not expiry or tonumber(expiry) <= now then return 0 end
         end
         for _,k in ipairs(KEYS) do
-          redis.call('ZADD',k,now+tonumber(ARGV[2]),ARGV[1]); redis.call('EXPIRE',k,tonumber(ARGV[2])*2)
+          redis.call('ZADD',k,now+tonumber(ARGV[2]),ARGV[1]); local last=redis.call('ZREVRANGE',k,0,0,'WITHSCORES')
+          redis.call('EXPIRE',k,math.max(tonumber(ARGV[2])*2,math.ceil(tonumber(last[2])-now)+1))
         end
         return 1
         """
@@ -115,7 +117,9 @@ class NavigationPacer:
             if delay <= 0:
                 return
             if delay > max(2.0, self.interval_s * 2):
-                raise DeferredMessage(delay + 1, "linkedin_navigation_cooldown", pause_consumer=True)
+                raise DeferredMessage(
+                    delay + 1, "linkedin_navigation_cooldown", pause_consumer=True
+                )
             await asyncio.sleep(min(delay, 1.0))
 
     async def cooldown(self, seconds=None):

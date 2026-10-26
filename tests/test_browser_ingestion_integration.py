@@ -206,3 +206,25 @@ async def test_browserless_restart_recovers_with_same_process_driver():
     finally:
         await manager.close()
         await c.close()
+
+
+async def test_short_ingestion_lease_cannot_expire_long_application_reservation():
+    from scaffold.cache.redis import RedisCache
+
+    app = RedisCache(URL)
+    await app.connect()
+    await app._redis.flushdb()
+    short = IngestionBudget(URL, flow="common", flow_limit=2)
+    await short.connect()
+    try:
+        key = "application:browserless:global"
+        assert await app.acquire_pool_slot(key, "long-application", 12, 600)
+        assert await short.acquire_pool_slot("", "ingestion", 12, 90)
+        assert await app._redis.ttl(key) >= 599
+        assert await short.renew_pool_slot("", "ingestion", 90)
+        assert await app._redis.ttl(key) >= 599
+        assert await app._redis.zscore(key, "long-application") is not None
+    finally:
+        await app._redis.flushdb()
+        await short.close()
+        await app.close()
