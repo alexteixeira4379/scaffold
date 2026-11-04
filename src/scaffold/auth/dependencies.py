@@ -8,8 +8,8 @@ copies of this logic that previously lived in each API's dependencies.py.
 Configuration is read from the environment so the module is self-contained
 and does not couple to any single service's Settings object:
 
-- ``JWT_SECRET``       — HMAC secret for HS256 tokens (default "change-me")
-- ``SERVICE_API_KEY``  — shared internal key for service auth (default "internal-key")
+- ``JWT_SECRET``       — explicit private HMAC secret for HS256 tokens
+- ``SERVICE_API_KEY``  — explicit private internal service key
 
 A service may override these lookups by passing explicit ``secret`` /
 ``service_key`` values to the factory helpers below.
@@ -18,6 +18,7 @@ A service may override these lookups by passing explicit ``secret`` /
 from __future__ import annotations
 
 import os
+import secrets
 
 import jwt
 from fastapi import Depends, Header, HTTPException, Request, status
@@ -26,14 +27,26 @@ from scaffold.cache.redis import RedisCache
 
 from scaffold.auth.context import AuthContext
 from scaffold.auth.token_service import JWT_ALGORITHM
+from scaffold.security import validate_secret
 
 
 def get_jwt_secret() -> str:
-    return os.environ.get("JWT_SECRET", "change-me")
+    return _configured_secret("JWT_SECRET")
 
 
 def get_service_api_key() -> str:
-    return os.environ.get("SERVICE_API_KEY", "internal-key")
+    return _configured_secret("SERVICE_API_KEY")
+
+
+def _configured_secret(name: str) -> str:
+    try:
+        return validate_secret(os.environ.get(name), name)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail="Authentication configuration unavailable") from exc
+
+
+def _service_matches(value: str | None) -> bool:
+    return isinstance(value, str) and secrets.compare_digest(value.encode(), get_service_api_key().encode())
 
 
 def _decode_jwt(token: str) -> dict:
@@ -122,7 +135,7 @@ async def check_user_revocation(
     authorization: str | None = Header(None, alias="Authorization"),
     x_service_key: str | None = Header(None, alias="X-Service-Key"),
 ) -> None:
-    if x_service_key is not None and x_service_key == get_service_api_key():
+    if _service_matches(x_service_key):
         return
     await _check_revocation(request, authorization)
 
@@ -151,7 +164,7 @@ def verify_service_key(
     The optional ``X-Candidate-Id`` header names the candidate the service
     is acting on behalf of. Returns an AuthContext with ``is_service=True``.
     """
-    if x_service_key is None or x_service_key != get_service_api_key():
+    if not _service_matches(x_service_key):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid service key")
     candidate_id = _coerce_optional_candidate_id(x_candidate_id)
     return AuthContext(candidate_id=candidate_id, is_service=True, claims={})
@@ -169,7 +182,7 @@ def verify_jwt_or_service(
     caller is treated as an internal service (candidate taken from
     ``X-Candidate-Id`` if provided). Otherwise falls back to JWT auth.
     """
-    if x_service_key is not None and x_service_key == get_service_api_key():
+    if _service_matches(x_service_key):
         candidate_id = _coerce_optional_candidate_id(x_candidate_id)
         return AuthContext(candidate_id=candidate_id, is_service=True, claims={})
     return verify_jwt(authorization)
@@ -187,7 +200,7 @@ def verify_candidate_access(
     caller). Otherwise the JWT 'sub' must match the ``candidate_id`` in the
     path, else 403.
     """
-    if x_service_key is not None and x_service_key == get_service_api_key():
+    if _service_matches(x_service_key):
         return AuthContext(candidate_id=candidate_id, is_service=True, claims={})
 
     ctx = verify_jwt(authorization)
