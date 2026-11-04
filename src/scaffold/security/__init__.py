@@ -67,7 +67,7 @@ class BodyLimitMiddleware:
                 return await JSONResponse({"detail": "Invalid Content-Length"}, status_code=400)(scope, receive, send)
             if declared > maximum:
                 return await self._too_large(scope, receive, send)
-        chunks, total = [], 0
+        buffer, total = bytearray(), 0
         try:
             async with asyncio.timeout(self.read_timeout_seconds):
                 while True:
@@ -78,18 +78,20 @@ class BodyLimitMiddleware:
                     total += len(chunk)
                     if total > maximum:
                         return await self._too_large(scope, receive, send)
-                    chunks.append(message)
+                    buffer.extend(chunk)
                     if not message.get("more_body", False):
                         break
         except TimeoutError:
             return await JSONResponse({"detail": "Request body read timed out"}, status_code=408)(scope, receive, send)
-        iterator = iter(chunks)
+        payload = bytes(buffer)
+        buffer.clear()
 
         async def bounded_receive():
-            try:
-                return next(iterator)
-            except StopIteration:
-                return await receive()
+            nonlocal payload
+            if payload is not None:
+                body, payload = payload, None
+                return {"type": "http.request", "body": body, "more_body": False}
+            return await receive()
 
         return await self.app(scope, bounded_receive, send)
 

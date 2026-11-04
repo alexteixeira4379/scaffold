@@ -85,3 +85,29 @@ async def test_declared_size_rejected_without_reading(header):
 @pytest.mark.asyncio
 async def test_slow_body_times_out_before_application():
     assert await run_request([], timeout=0.001, delay=0.1) == (408, b"")
+
+
+@pytest.mark.asyncio
+async def test_many_tiny_chunks_are_coalesced_before_application():
+    count = 20000
+    remaining = count
+    sent, admitted = [], []
+
+    async def receive():
+        nonlocal remaining
+        remaining -= 1
+        return {"type": "http.request", "body": b"x", "more_body": remaining > 0}
+
+    async def send(message):
+        sent.append(message)
+
+    async def app(scope, receive, send):
+        message = await receive()
+        admitted.append(message)
+        await send({"type": "http.response.start", "status": 204, "headers": []})
+
+    await BodyLimitMiddleware(app, max_bytes=count)(
+        {"type": "http", "path": "/", "headers": []}, receive, send)
+    assert len(admitted) == 1
+    assert admitted[0] == {"type": "http.request", "body": b"x" * count, "more_body": False}
+    assert sent[0]["status"] == 204
