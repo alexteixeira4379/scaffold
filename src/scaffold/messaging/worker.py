@@ -64,6 +64,7 @@ class QueueWorkerRunner:
         self._progress_report_interval_s = progress_report_interval_s
         self._no_progress_s = no_progress_s
         self._last_delivery = 0.0
+        self._active_delivery_starts: dict[asyncio.Task[None], float] = {}
         self._unresolved_deliveries: dict[str, float] = {}
         if delivery and max_in_flight * delivery.policy.max_transport_bytes > max_in_flight_bytes:
             raise ValueError("max_in_flight exceeds the configured payload memory budget")
@@ -139,8 +140,10 @@ class QueueWorkerRunner:
 
             task = asyncio.create_task(self._process(message))
             active.add(task)
+            self._active_delivery_starts[task] = asyncio.get_running_loop().time()
             def completed(task):
                 active.discard(task)
+                self._active_delivery_starts.pop(task, None)
                 if not task.cancelled() and task.exception():
                     self._logger.error("delivery_task_failed error_class=%s", type(task.exception()).__name__)
             task.add_done_callback(completed)
@@ -209,9 +212,13 @@ class QueueWorkerRunner:
         self._logger.info("worker_metrics consumer=%s in_flight=%s unresolved=%s counters=%s",
                           self._delivery.consumer, active_count, len(self._unresolved_deliveries),
                           json.dumps(self._delivery.counters.values, sort_keys=True))
-        # Preserved/requeued deliveries remain known pending work while the
-        # circuit is open, even after their task released its worker slot.
-        if (active_count or self._unresolved_deliveries) and now - self._delivery.counters.last_progress >= self._no_progress_s:
+        # Measure the age of pending work, never the idle time preceding it.
+        # A different task completing must not hide an older stuck delivery.
+        # Preserved/requeued work keeps its first unresolved timestamp even
+        # after it released its worker slot while the circuit is open.
+        pending_since = (*self._active_delivery_starts.values(),
+                         *self._unresolved_deliveries.values())
+        if pending_since and now - min(pending_since) >= self._no_progress_s:
             self._logger.error("worker_no_progress consumer=%s in_flight=%s unresolved=%s",
                                self._delivery.consumer, active_count, len(self._unresolved_deliveries))
 

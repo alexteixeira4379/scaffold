@@ -62,6 +62,12 @@ close the consumer channel. Remaining deliveries return to RabbitMQ. Expired
 local leases can recover; uncertain external executions require evidence before
 replay. Configure platform draining time above the runner deadline.
 
+The `worker_no_progress` watchdog measures the age of the oldest active or
+unresolved delivery. Idle time before a task starts is excluded, and completion
+of another task does not reset the age of older pending work. The warning marks
+work older than `no_progress_s`; it is not proof that a provider call is stuck.
+Use execution-phase evidence and provider deadlines to diagnose long tasks.
+
 ## Transport, outbox and resource bounds
 
 Continuous mode uses `basic.consume` on a channel owned by that input queue,

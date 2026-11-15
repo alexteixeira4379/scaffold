@@ -411,10 +411,47 @@ async def test_no_progress_alert_includes_preserved_work_with_no_active_task(del
     worker = runner(delivery_db, handler)
     await worker._process(message())
     now = asyncio.get_running_loop().time()
-    worker._delivery.counters.last_progress = now - 301
+    worker._unresolved_deliveries["event-1"] = now - 301
     with caplog.at_level("ERROR"):
         worker._report_progress(0, now)
     assert "worker_no_progress" in caplog.text and "in_flight=0 unresolved=1" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_new_delivery_does_not_inherit_long_idle_period(delivery_db, caplog):
+    worker = runner(delivery_db, AsyncMock())
+    now = asyncio.get_running_loop().time()
+    worker._delivery.counters.last_progress = now - 600
+    task = asyncio.current_task()
+    worker._active_delivery_starts[task] = now - 30
+    with caplog.at_level("ERROR"):
+        worker._report_progress(1, now)
+    assert "worker_no_progress" not in caplog.text
+    with caplog.at_level("ERROR"):
+        worker._report_progress(1, now + 271)
+    assert "worker_no_progress" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_recent_completion_does_not_hide_an_older_stuck_delivery(delivery_db, caplog):
+    worker = runner(delivery_db, AsyncMock())
+    now = asyncio.get_running_loop().time()
+    worker._delivery.counters.last_progress = now
+    worker._active_delivery_starts[asyncio.current_task()] = now - 301
+    with caplog.at_level("ERROR"):
+        worker._report_progress(1, now)
+    assert "worker_no_progress" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_fresh_infrastructure_pause_does_not_inherit_idle_time(delivery_db, caplog):
+    worker = runner(delivery_db, AsyncMock())
+    now = asyncio.get_running_loop().time()
+    worker._delivery.counters.last_progress = now - 600
+    worker._unresolved_deliveries["event-1"] = now - 1
+    with caplog.at_level("ERROR"):
+        worker._report_progress(0, now)
+    assert "worker_no_progress" not in caplog.text
 
 
 @pytest.mark.asyncio
