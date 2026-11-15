@@ -15,7 +15,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.exc import OperationalError
 
-from scaffold.messaging.domain import enqueue, relay_once
+from scaffold.messaging.domain import _outbox_claim_query, enqueue, relay_once
 from scaffold.messaging.memory import InMemoryMessaging
 from scaffold.messaging.ports import FetchedMessage
 from scaffold.messaging.processing import (
@@ -248,6 +248,32 @@ async def test_relay_does_not_hold_database_transaction_while_publishing(deliver
     async with delivery_db() as session:
         row = await session.scalar(select(DomainOutbox))
         assert row.delivered_at is not None
+
+
+@pytest.mark.asyncio
+async def test_relay_claims_the_oldest_due_message_instead_of_oldest_id(delivery_db):
+    now = datetime.utcnow()
+    async with delivery_db() as session, session.begin():
+        for identity, delay in ((1, 60), (2, -5), (3, -10)):
+            await enqueue(session, "test-service", "test.output", {"id": identity},
+                          key=str(identity), available_at=now + timedelta(seconds=delay))
+    broker = InMemoryMessaging()
+    await relay_once(delivery_db, broker, "test-service", batch_size=1)
+    published = await broker.fetch_one("test.output")
+    assert published.body["id"] == 3
+    async with delivery_db() as session:
+        rows = list(await session.scalars(select(DomainOutbox).order_by(DomainOutbox.id)))
+        assert [row.delivered_at is not None for row in rows] == [False, False, True]
+
+
+def test_mysql_relay_claim_uses_the_ready_range_index():
+    from sqlalchemy.dialects import mysql
+
+    sql = str(_outbox_claim_query("test-service", datetime.utcnow(), 16).compile(
+        dialect=mysql.dialect()))
+    assert "FORCE INDEX (ix_domain_outbox_ready)" in sql
+    assert "ORDER BY domain_outbox.available_at, domain_outbox.id" in sql
+    assert "FOR UPDATE SKIP LOCKED" in sql
 
 
 @pytest.mark.asyncio

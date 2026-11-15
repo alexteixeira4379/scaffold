@@ -171,6 +171,21 @@ async def emit(session, source, event_name, candidate_id, data, *, key, aggregat
     return row
 
 
+def _outbox_claim_query(source, now, batch_size):
+    # Ordering only by id lets MySQL prefer the source index and locking-scan
+    # delivered history. Match the ready index's range and ordering instead.
+    return (select(DomainOutbox).with_hint(
+        DomainOutbox, "FORCE INDEX (ix_domain_outbox_ready)", dialect_name="mysql",
+    ).where(
+        DomainOutbox.source == source,
+        DomainOutbox.delivered_at.is_(None),
+        DomainOutbox.quarantined_at.is_(None),
+        DomainOutbox.available_at <= now,
+        or_(DomainOutbox.claimed_until.is_(None), DomainOutbox.claimed_until <= now),
+    ).order_by(DomainOutbox.available_at, DomainOutbox.id)
+      .with_for_update(skip_locked=True).limit(batch_size))
+
+
 async def relay_once(factory, broker, source, *, batch_size=16, concurrency=4, publish_timeout=15):
     """Claim in a short transaction; never await the broker while holding locks.
 
@@ -183,19 +198,7 @@ async def relay_once(factory, broker, source, *, batch_size=16, concurrency=4, p
     now = datetime.utcnow()
     lease_seconds = publish_timeout * ((batch_size + concurrency - 1) // concurrency + 1) + 30
     async with factory() as session, session.begin():
-        rows = list(await session.scalars(
-            select(DomainOutbox)
-            .where(
-                DomainOutbox.source == source,
-                DomainOutbox.delivered_at.is_(None),
-                DomainOutbox.quarantined_at.is_(None),
-                DomainOutbox.available_at <= datetime.utcnow(),
-                or_(DomainOutbox.claimed_until.is_(None), DomainOutbox.claimed_until <= now),
-            )
-            .order_by(DomainOutbox.id)
-            .with_for_update(skip_locked=True)
-            .limit(batch_size)
-        ))
+        rows = list(await session.scalars(_outbox_claim_query(source, now, batch_size)))
         pending = []
         quarantined = 0
         for row in rows:

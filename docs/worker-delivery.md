@@ -80,6 +80,12 @@ concurrently, then records results with a claim-token condition. No broker wait
 holds a database transaction. Expired claims recover after restart. Confirmation
 followed by a crash can publish twice; downstream inboxes are required.
 
+Claims prioritize the oldest due `available_at`, with `id` as a tie breaker.
+MySQL uses the existing `ix_domain_outbox_ready` range index explicitly, avoiding
+a locking scan of delivered history through the source-only index. This index
+must exist before deploying the relay; no new schema is needed on environments
+that already have the worker-delivery migrations.
+
 Malformed historical outbox envelopes are isolated per row rather than aborting
 the batch. The original row has `quarantined_at` and no `delivered_at`; it retains
 its data. Publisher quarantine uses consumer `outbox-publisher` and the same
